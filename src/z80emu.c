@@ -17,12 +17,15 @@ typedef struct z80emu {
     WINDOW* reg_win;
     WINDOW* mem_win;
     WINDOW* msg_win;
+    WINDOW* asm_win;
     uint8_t reg_width;
     uint8_t reg_height;
     uint8_t mem_width;
     uint8_t mem_height;
     uint8_t msg_width;
     uint8_t msg_height;
+    uint8_t asm_width;
+    uint8_t asm_height;
     uint8_t pause;
     char msg[255];
 } z80emu_t;
@@ -42,11 +45,15 @@ void cleanup_context(z80emu_t* z80emu) {
     delwin(z80emu->reg_win);
     delwin(z80emu->mem_win);
     delwin(z80emu->msg_win);
+    delwin(z80emu->asm_win);
     z80ex_destroy(z80emu->cpu);
 }
 
 void init_windows(z80emu_t* z80emu) {
     int x, y;
+    uint8_t reg_width;
+    uint8_t right_width, mem_width, mid_width;
+
     getmaxyx(stdscr, y, x);
     if (z80emu->reg_win != NULL) {
         delwin(z80emu->reg_win);
@@ -58,25 +65,36 @@ void init_windows(z80emu_t* z80emu) {
         delwin(z80emu->msg_win);
     }
 
-    z80emu->reg_width = 33;
+    reg_width = 33;
+    mid_width = 33;
+
+    z80emu->reg_width = reg_width;
     z80emu->reg_height = y;
 
-    z80emu->msg_width = x - z80emu->reg_width;
+    mem_width = x - reg_width - mid_width;
+
+    z80emu->msg_width = x - reg_width;
     z80emu->msg_height = 3;
 
-    z80emu->mem_width = x - z80emu->reg_width;
+    z80emu->asm_width = mid_width;
+    z80emu->asm_height = y - z80emu->msg_height;
+
+    z80emu->mem_width = mem_width;
     z80emu->mem_height = y - z80emu->msg_height;
 
     z80emu->reg_win = newwin(z80emu->reg_height, z80emu->reg_width, 0, 0);
-    z80emu->msg_win = newwin(z80emu->msg_height, z80emu->msg_width, z80emu->mem_height, z80emu->reg_width);
-    z80emu->mem_win = newwin(z80emu->mem_height, z80emu->mem_width, 0, z80emu->reg_width);
+    z80emu->msg_win = newwin(z80emu->msg_height, z80emu->msg_width, z80emu->mem_height, reg_width);
+    z80emu->mem_win = newwin(z80emu->mem_height, z80emu->mem_width, 0, reg_width + mid_width);
+    z80emu->asm_win = newwin(z80emu->asm_height, z80emu->asm_width, 0, mid_width);
 
     box(z80emu->reg_win, 0, 0);
     box(z80emu->msg_win, 0, 0);
     box(z80emu->mem_win, 0, 0);
+    box(z80emu->asm_win, 0, 0);
     wbkgd(z80emu->reg_win, COLOR_PAIR(3));
     wbkgd(z80emu->msg_win, COLOR_PAIR(4));
     wbkgd(z80emu->mem_win, COLOR_PAIR(3));
+    wbkgd(z80emu->asm_win, COLOR_PAIR(3));
 }
 
 void init_view(z80emu_t* z80emu) {
@@ -300,6 +318,7 @@ void refresh_view(z80emu_t* z80emu) {
     wrefresh(z80emu->reg_win);
     wrefresh(z80emu->msg_win);
     wrefresh(z80emu->mem_win);
+    wrefresh(z80emu->asm_win);
 }
 
 void execute_instruction(Z80EX_CONTEXT *cpu) {
