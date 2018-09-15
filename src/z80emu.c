@@ -13,16 +13,16 @@ typedef struct z80emu {
     FILE* rom_fh;
     uint8_t* memory;
     Z80EX_CONTEXT *cpu;
-    WINDOW* mnv_nwin;
     WINDOW* rgv_nwin;
     WINDOW* mcv_nwin;
+    uint8_t rgv_width;
+    uint8_t rgv_height;
+    uint8_t mcv_width;
+    uint8_t mcv_height;
     uint8_t pause;
 } z80emu_t;
 
-static void cleanup_view(int sig) {
-    endwin();
-    exit(0);
-}
+z80emu_t Z80EMU;
 
 void cleanup_context(z80emu_t* z80emu) {
     if (z80emu->memory != NULL) {
@@ -33,9 +33,35 @@ void cleanup_context(z80emu_t* z80emu) {
     z80ex_destroy(z80emu->cpu);
 }
 
+void init_windows(z80emu_t* z80emu) {
+    int x, y;
+    getmaxyx(stdscr, y, x);
+    if (z80emu->rgv_nwin != NULL) {
+        delwin(z80emu->rgv_nwin);
+    }
+    if (z80emu->mcv_nwin != NULL) {
+        delwin(z80emu->mcv_nwin);
+    }
+
+    z80emu->rgv_width = 33;
+    z80emu->rgv_height = y;
+
+    z80emu->mcv_width = x - 33;
+    z80emu->mcv_height = y;
+
+    z80emu->rgv_nwin = newwin(z80emu->rgv_height, z80emu->rgv_width, 0, 0);
+    z80emu->mcv_nwin = newwin(z80emu->mcv_height, z80emu->mcv_width, 0, z80emu->rgv_width);
+
+    box(z80emu->rgv_nwin, 0, 0);
+    box(z80emu->mcv_nwin, 0, 0);
+    //mvwin(z80emu->mcv_nwin, 0, 39);
+    //wbkgd(z80emu->mnv_nwin, COLOR_PAIR(7));
+    wbkgd(z80emu->rgv_nwin, COLOR_PAIR(3));
+    wbkgd(z80emu->mcv_nwin, COLOR_PAIR(3));
+}
+
 void init_view(z80emu_t* z80emu) {
     setlocale(LC_ALL, "");
-    signal(SIGINT, cleanup_view);
     initscr();
     if (has_colors()) {
         start_color();
@@ -45,21 +71,24 @@ void init_view(z80emu_t* z80emu) {
         init_pair(4, COLOR_BLUE, COLOR_BLACK);
         init_pair(5, COLOR_CYAN, COLOR_BLACK);
         init_pair(6, COLOR_MAGENTA, COLOR_BLACK);
-        init_pair(7, COLOR_WHITE, COLOR_BLACK);
+        init_pair(7, COLOR_BLACK, COLOR_MAGENTA);
+        init_pair(8, COLOR_WHITE, COLOR_BLACK);
     }
-
-    z80emu->rgv_nwin = newwin(31, 33, 0, 0);
-    z80emu->mcv_nwin = newwin(10, 30, 0, 39);
-
-    box(z80emu->rgv_nwin, 0, 0);
-    //mvwin(z80emu->mcv_nwin, 0, 39);
-    //wbkgd(z80emu->mnv_nwin, COLOR_PAIR(7));
-    wbkgd(z80emu->rgv_nwin, COLOR_PAIR(3));
-
     noecho();
     cbreak();
     timeout(1000);
     curs_set(FALSE);
+    init_windows(z80emu);
+}
+
+void resize_view(z80emu_t* z80emu) {
+    if (z80emu->rgv_nwin != NULL) {
+        delwin(z80emu->rgv_nwin);
+    }
+    if (z80emu->mcv_nwin != NULL) {
+        delwin(z80emu->mcv_nwin);
+    }
+    init_windows(z80emu);
 }
 
 void draw_reg_win(z80emu_t* z80emu) {
@@ -193,6 +222,54 @@ void draw_registers(z80emu_t* z80emu) {
     draw_reg_16(z80emu, 1, 20, reg_word);
 }
 
+void draw_memory(z80emu_t* z80emu) {
+    char hex[3];
+    uint8_t viz_width, viz_height;
+    uint8_t nr_bytes_across;
+    uint8_t x, y;
+    uint16_t i;
+    uint8_t b_count;
+    Z80EX_WORD pc;
+
+    hex[2] = '\0';
+
+    pc = z80ex_get_reg(z80emu->cpu, regPC);
+
+    ins_on_line = (uint16_t)pc / viz_width;
+
+    viz_width = z80emu->mcv_width - 2;
+    viz_height = z80emu->mcv_height - 2;
+
+    nr_bytes_across = viz_width / 3;
+    b_count = 1;
+    x = 1;
+    y = 1;
+
+    for (i = 0; i < 65536; i++) {
+        sprintf(hex, "%02x", z80emu->memory[i]);
+        if (i == (uint16_t)pc) {
+            wattron(z80emu->mcv_nwin, COLOR_PAIR(7));
+            mvwaddstr(z80emu->mcv_nwin, y, x, hex);
+            wattroff(z80emu->mcv_nwin, COLOR_PAIR(7));
+        }
+        else {
+            wattron(z80emu->mcv_nwin, COLOR_PAIR(6));
+            mvwaddstr(z80emu->mcv_nwin, y, x, hex);
+            wattroff(z80emu->mcv_nwin, COLOR_PAIR(6));
+        }
+        x += 3;
+        b_count++;
+        if (b_count > nr_bytes_across) {
+            b_count = 1;
+            x = 1;
+            y++;
+        }
+        if (y > viz_height) {
+            break;
+        }
+    }
+}
+
 void debug_message(char* message) {
     attron(COLOR_PAIR(3));
     mvaddstr(28, 1, message);
@@ -202,8 +279,10 @@ void debug_message(char* message) {
 void refresh_view(z80emu_t* z80emu) {
     draw_reg_win(z80emu);
     draw_registers(z80emu);
+    draw_memory(z80emu);
     refresh();
     wrefresh(z80emu->rgv_nwin);
+    wrefresh(z80emu->mcv_nwin);
 }
 
 void execute_instruction(Z80EX_CONTEXT *cpu) {
@@ -212,69 +291,48 @@ void execute_instruction(Z80EX_CONTEXT *cpu) {
 }
 
 // BEGIN Callbacks
-Z80EX_BYTE mem_read(Z80EX_CONTEXT *cpu, Z80EX_WORD addr, int m1_state, void *z80emu) {
-    char message[101];
-    message[100] = '\0';
-    sprintf(message, "memory read: address[%016x]", addr);
-    debug_message(message);
-    return 4;
+Z80EX_BYTE mem_read(Z80EX_CONTEXT* cpu, Z80EX_WORD addr, int m1_state, void* user_data) {
+    z80emu_t* z80emu;
+    z80emu = user_data;
+    return z80emu->memory[(uint16_t)addr];
 }
 
 void mem_write(Z80EX_CONTEXT *cpu, Z80EX_WORD addr, Z80EX_BYTE value, void *z80emu) {
-    printf("memory write: address[%016x] data[%08x]\n", addr, value);
+    //printf("memory write: address[%016x] data[%08x]\n", addr, value);
 }
 
 Z80EX_BYTE port_read(Z80EX_CONTEXT *cpu, Z80EX_WORD port, void *z80emu) {
-    printf("port read: address[%016x]\n", port);
+    //printf("port read: address[%016x]\n", port);
     return 0;
 }
 
 void port_write(Z80EX_CONTEXT *cpu, Z80EX_WORD port, Z80EX_BYTE value, void *z80emu) {
-    printf("port write: address[%016x] data[%08x]\n", port, value);
+    //printf("port write: address[%016x] data[%08x]\n", port, value);
 }
 
 Z80EX_BYTE int_read(Z80EX_CONTEXT *cpu, void *z80emu) {
-    printf("interrupt vector!\n");
+    //printf("interrupt vector!\n");
     return 0;
 }
 // END Calbacks
 
-void main_program(z80emu_t* z80emu) {
-    char c;
-    uint8_t pause;
+void handle_winch(int sig){
+    signal(SIGWINCH, SIG_IGN);
+    endwin();
+    resize_view(&Z80EMU);
+    refresh_view(&Z80EMU);
+    signal(SIGWINCH, handle_winch);
+}
 
-    z80emu->cpu = z80ex_create(mem_read, z80emu, mem_write, z80emu, port_read, z80emu, port_write, z80emu, int_read, z80emu);
+static void handle_int(int sig) {
+    cleanup_context(&Z80EMU);
+    endwin();
+    exit(0);
+}
 
-    init_view(z80emu);
-    refresh_view(z80emu);
-
-    pause = 1;
-
-    while (1) {
-        c = getch();
-        if (ERR != c) {
-            pause = 1;
-            switch (c) {
-                case ' ':
-                    pause = !pause;
-                    break;
-                case 'q':
-                    cleanup_context(z80emu);
-                    cleanup_view(1);
-                    exit(0);
-                    break;
-                default:
-                    break;
-            }
-        }
-        if (!pause) {
-            execute_instruction(z80emu->cpu);
-            refresh_view(z80emu);
-        }
-    }
-
-    cleanup_context(z80emu);
-    cleanup_view(1);
+void install_signal_handlers() {
+    signal(SIGINT, handle_int);
+    signal(SIGWINCH, handle_winch);
 }
 
 void load_binary_rom(z80emu_t* z80emu, char* rom_file) {
@@ -311,13 +369,48 @@ void init_z80emu(z80emu_t* z80emu) {
     memset(z80emu->memory, 0, sizeof(uint8_t) * 65536);
 }
 
+void main_program(z80emu_t* z80emu) {
+    char c;
+    uint8_t pause;
+
+    z80emu->cpu = z80ex_create(mem_read, z80emu, mem_write, z80emu, port_read, z80emu, port_write, z80emu, int_read, z80emu);
+
+    init_view(z80emu);
+    install_signal_handlers();
+    refresh_view(z80emu);
+
+    pause = 1;
+
+    while (1) {
+        c = getch();
+        if (ERR != c) {
+            pause = 1;
+            switch (c) {
+                case ' ':
+                    pause = !pause;
+                    break;
+                case 'q':
+                    cleanup_context(z80emu);
+                    endwin();
+                    exit(0);
+                    break;
+                default:
+                    break;
+            }
+        }
+        if (!pause) {
+            execute_instruction(z80emu->cpu);
+            refresh_view(z80emu);
+        }
+    }
+}
+
 int main(int argc, char *argv[]) {
-    z80emu_t z80emu;
     char* rom_file;
     int8_t c;
 	int option_index = 0;
 
-    init_z80emu(&z80emu);
+    init_z80emu(&Z80EMU);
 
 	static struct option long_options[] = {
         {"rom", optional_argument, 0, 'r'},
@@ -331,7 +424,7 @@ int main(int argc, char *argv[]) {
 		}
         switch (c) {
             case 'r':
-                load_binary_rom(&z80emu, optarg);
+                load_binary_rom(&Z80EMU, optarg);
                 break;
             default:
                 print_help();
@@ -339,6 +432,9 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    main_program(&z80emu);
+    main_program(&Z80EMU);
+
+    cleanup_context(&Z80EMU);
+    endwin();
     return 0;
 }
