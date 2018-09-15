@@ -14,13 +14,13 @@ typedef struct z80emu {
     FILE* rom_fh;
     uint8_t* memory;
     Z80EX_CONTEXT *cpu;
-    WINDOW* rgv_win;
-    WINDOW* mcv_win;
+    WINDOW* reg_win;
+    WINDOW* mem_win;
     WINDOW* msg_win;
-    uint8_t rgv_width;
-    uint8_t rgv_height;
-    uint8_t mcv_width;
-    uint8_t mcv_height;
+    uint8_t reg_width;
+    uint8_t reg_height;
+    uint8_t mem_width;
+    uint8_t mem_height;
     uint8_t msg_width;
     uint8_t msg_height;
     uint8_t pause;
@@ -39,8 +39,8 @@ void cleanup_context(z80emu_t* z80emu) {
     if (z80emu->memory != NULL) {
         free(z80emu->memory);
     }
-    delwin(z80emu->rgv_win);
-    delwin(z80emu->mcv_win);
+    delwin(z80emu->reg_win);
+    delwin(z80emu->mem_win);
     delwin(z80emu->msg_win);
     z80ex_destroy(z80emu->cpu);
 }
@@ -48,35 +48,35 @@ void cleanup_context(z80emu_t* z80emu) {
 void init_windows(z80emu_t* z80emu) {
     int x, y;
     getmaxyx(stdscr, y, x);
-    if (z80emu->rgv_win != NULL) {
-        delwin(z80emu->rgv_win);
+    if (z80emu->reg_win != NULL) {
+        delwin(z80emu->reg_win);
     }
-    if (z80emu->mcv_win != NULL) {
-        delwin(z80emu->mcv_win);
+    if (z80emu->mem_win != NULL) {
+        delwin(z80emu->mem_win);
     }
     if (z80emu->msg_win != NULL) {
         delwin(z80emu->msg_win);
     }
 
-    z80emu->rgv_width = 33;
-    z80emu->rgv_height = y;
+    z80emu->reg_width = 33;
+    z80emu->reg_height = y;
 
-    z80emu->msg_width = x - z80emu->rgv_width;
+    z80emu->msg_width = x - z80emu->reg_width;
     z80emu->msg_height = 3;
 
-    z80emu->mcv_width = x - z80emu->rgv_width;
-    z80emu->mcv_height = y - z80emu->msg_height;
+    z80emu->mem_width = x - z80emu->reg_width;
+    z80emu->mem_height = y - z80emu->msg_height;
 
-    z80emu->rgv_win = newwin(z80emu->rgv_height, z80emu->rgv_width, 0, 0);
-    z80emu->msg_win = newwin(z80emu->msg_height, z80emu->msg_width, z80emu->mcv_height, z80emu->rgv_width);
-    z80emu->mcv_win = newwin(z80emu->mcv_height, z80emu->mcv_width, 0, z80emu->rgv_width);
+    z80emu->reg_win = newwin(z80emu->reg_height, z80emu->reg_width, 0, 0);
+    z80emu->msg_win = newwin(z80emu->msg_height, z80emu->msg_width, z80emu->mem_height, z80emu->reg_width);
+    z80emu->mem_win = newwin(z80emu->mem_height, z80emu->mem_width, 0, z80emu->reg_width);
 
-    box(z80emu->rgv_win, 0, 0);
+    box(z80emu->reg_win, 0, 0);
     box(z80emu->msg_win, 0, 0);
-    box(z80emu->mcv_win, 0, 0);
-    wbkgd(z80emu->rgv_win, COLOR_PAIR(3));
+    box(z80emu->mem_win, 0, 0);
+    wbkgd(z80emu->reg_win, COLOR_PAIR(3));
     wbkgd(z80emu->msg_win, COLOR_PAIR(4));
-    wbkgd(z80emu->mcv_win, COLOR_PAIR(3));
+    wbkgd(z80emu->mem_win, COLOR_PAIR(3));
 }
 
 void init_view(z80emu_t* z80emu) {
@@ -109,37 +109,37 @@ void draw_reg_win(z80emu_t* z80emu) {
 
     x = 1;
     y = 1;
-    wattron(z80emu->rgv_win, COLOR_PAIR(2));
-    mvwaddstr(z80emu->rgv_win, y, x, "PC            [program counter]"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "───────────────┬───────────────"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "A [accumulator]│F       [flags]"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "000 00 00000000│000 00 00000000"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "───────────────┼───────────────"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "B     [counter]│C        [port]"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "000 00 00000000│000 00 00000000"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "───────────────┼───────────────"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "D              │E              "); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "000 00 00000000│000 00 00000000"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "───────────────┼───────────────"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "H              │L              "); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "000 00 00000000│000 00 00000000"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "───────────────┴───────────────"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "I                   [interrupt]"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "───────────────────────────────"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "R                     [refresh]"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "───────────────────────────────"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "SP              [stack pointer]"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "───────────────────────────────"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "IX            IXH      IXL     "); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "───────────────────────────────"); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "IY            IYH      IYL     "); y++;
-    mvwaddstr(z80emu->rgv_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
-    wattroff(z80emu->rgv_win, COLOR_PAIR(2));
+    wattron(z80emu->reg_win, COLOR_PAIR(2));
+    mvwaddstr(z80emu->reg_win, y, x, "PC            [program counter]"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "───────────────┬───────────────"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "A [accumulator]│F       [flags]"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "000 00 00000000│000 00 00000000"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "───────────────┼───────────────"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "B     [counter]│C        [port]"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "000 00 00000000│000 00 00000000"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "───────────────┼───────────────"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "D              │E              "); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "000 00 00000000│000 00 00000000"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "───────────────┼───────────────"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "H              │L              "); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "000 00 00000000│000 00 00000000"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "───────────────┴───────────────"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "I                   [interrupt]"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "───────────────────────────────"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "R                     [refresh]"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "───────────────────────────────"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "SP              [stack pointer]"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "───────────────────────────────"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "IX            IXH      IXL     "); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "───────────────────────────────"); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "IY            IYH      IYL     "); y++;
+    mvwaddstr(z80emu->reg_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
+    wattroff(z80emu->reg_win, COLOR_PAIR(2));
 }
 
 void draw_reg_8(z80emu_t* z80emu, uint8_t x, uint8_t y, uint8_t value) {
@@ -164,12 +164,12 @@ void draw_reg_8(z80emu_t* z80emu, uint8_t x, uint8_t y, uint8_t value) {
         }
     }
 
-    mvwaddstr(z80emu->rgv_win, y, x, dec); x += 4;
-    mvwaddstr(z80emu->rgv_win, y, x, hex); x += 3;
+    mvwaddstr(z80emu->reg_win, y, x, dec); x += 4;
+    mvwaddstr(z80emu->reg_win, y, x, hex); x += 3;
 
-    wattron(z80emu->rgv_win, COLOR_PAIR(4));
-    mvwaddstr(z80emu->rgv_win, y, x, bin);
-    wattroff(z80emu->rgv_win, COLOR_PAIR(4));
+    wattron(z80emu->reg_win, COLOR_PAIR(4));
+    mvwaddstr(z80emu->reg_win, y, x, bin);
+    wattroff(z80emu->reg_win, COLOR_PAIR(4));
 }
 
 void draw_reg_16(z80emu_t* z80emu, uint8_t x, uint8_t y, uint16_t value) {
@@ -194,9 +194,9 @@ void draw_reg_16(z80emu_t* z80emu, uint8_t x, uint8_t y, uint16_t value) {
         }
     }
 
-    mvwaddstr(z80emu->rgv_win, y, x, dec); x += 8;
-    mvwaddstr(z80emu->rgv_win, y, x, hex); x += 7;
-    mvwaddstr(z80emu->rgv_win, y, x, bin);
+    mvwaddstr(z80emu->reg_win, y, x, dec); x += 8;
+    mvwaddstr(z80emu->reg_win, y, x, hex); x += 7;
+    mvwaddstr(z80emu->reg_win, y, x, bin);
 }
 
 void draw_reg_16_as_two_8(z80emu_t* z80emu, uint8_t x, uint8_t y, uint16_t value) {
@@ -245,8 +245,8 @@ void draw_memory(z80emu_t* z80emu) {
     uint8_t ins_on_line;
     Z80EX_WORD pc;
 
-    viz_width = z80emu->mcv_width - 2;
-    viz_height = z80emu->mcv_height - 2;
+    viz_width = z80emu->mem_width - 2;
+    viz_height = z80emu->mem_height - 2;
     nr_bytes_across = viz_width / 3;
 
     hex[2] = '\0';
@@ -270,14 +270,14 @@ void draw_memory(z80emu_t* z80emu) {
     for (i = start_addr; i < 65536; i++) {
         sprintf(hex, "%02x", z80emu->memory[i]);
         if (i == (uint16_t)pc) {
-            wattron(z80emu->mcv_win, COLOR_PAIR(7));
-            mvwaddstr(z80emu->mcv_win, y, x, hex);
-            wattroff(z80emu->mcv_win, COLOR_PAIR(7));
+            wattron(z80emu->mem_win, COLOR_PAIR(7));
+            mvwaddstr(z80emu->mem_win, y, x, hex);
+            wattroff(z80emu->mem_win, COLOR_PAIR(7));
         }
         else {
-            wattron(z80emu->mcv_win, COLOR_PAIR(6));
-            mvwaddstr(z80emu->mcv_win, y, x, hex);
-            wattroff(z80emu->mcv_win, COLOR_PAIR(6));
+            wattron(z80emu->mem_win, COLOR_PAIR(6));
+            mvwaddstr(z80emu->mem_win, y, x, hex);
+            wattroff(z80emu->mem_win, COLOR_PAIR(6));
         }
         x += 3;
         b_count++;
@@ -297,9 +297,9 @@ void refresh_view(z80emu_t* z80emu) {
     draw_registers(z80emu);
     draw_memory(z80emu);
     refresh();
-    wrefresh(z80emu->rgv_win);
+    wrefresh(z80emu->reg_win);
     wrefresh(z80emu->msg_win);
-    wrefresh(z80emu->mcv_win);
+    wrefresh(z80emu->mem_win);
 }
 
 void execute_instruction(Z80EX_CONTEXT *cpu) {
@@ -330,6 +330,12 @@ void port_write(Z80EX_CONTEXT *cpu, Z80EX_WORD port, Z80EX_BYTE value, void *z80
 Z80EX_BYTE int_read(Z80EX_CONTEXT *cpu, void *z80emu) {
     //printf("interrupt vector!\n");
     return 0;
+}
+
+Z80EX_BYTE mem_read_dasm(Z80EX_WORD addr, void *user_data) {
+    z80emu_t* z80emu;
+    z80emu = user_data;
+    return z80emu->memory[(uint16_t)addr];
 }
 // END Calbacks
 
