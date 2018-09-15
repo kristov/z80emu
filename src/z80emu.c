@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <locale.h>
 #include "z80ex.h"
+#include "z80ex_dasm.h"
 
 typedef struct z80emu {
     FILE* rom_fh;
@@ -15,14 +16,24 @@ typedef struct z80emu {
     Z80EX_CONTEXT *cpu;
     WINDOW* rgv_win;
     WINDOW* mcv_win;
+    WINDOW* msg_win;
     uint8_t rgv_width;
     uint8_t rgv_height;
     uint8_t mcv_width;
     uint8_t mcv_height;
+    uint8_t msg_width;
+    uint8_t msg_height;
     uint8_t pause;
+    char msg[255];
 } z80emu_t;
 
 z80emu_t Z80EMU;
+
+void debug_message(z80emu_t* z80emu, char* message) {
+    wattron(z80emu->msg_win, COLOR_PAIR(3));
+    mvwaddstr(z80emu->msg_win, 1, 1, message);
+    wattroff(z80emu->msg_win, COLOR_PAIR(3));
+}
 
 void cleanup_context(z80emu_t* z80emu) {
     if (z80emu->memory != NULL) {
@@ -30,6 +41,7 @@ void cleanup_context(z80emu_t* z80emu) {
     }
     delwin(z80emu->rgv_win);
     delwin(z80emu->mcv_win);
+    delwin(z80emu->msg_win);
     z80ex_destroy(z80emu->cpu);
 }
 
@@ -42,20 +54,28 @@ void init_windows(z80emu_t* z80emu) {
     if (z80emu->mcv_win != NULL) {
         delwin(z80emu->mcv_win);
     }
+    if (z80emu->msg_win != NULL) {
+        delwin(z80emu->msg_win);
+    }
 
     z80emu->rgv_width = 33;
     z80emu->rgv_height = y;
 
-    z80emu->mcv_width = x - 33;
-    z80emu->mcv_height = y;
+    z80emu->msg_width = x - z80emu->rgv_width;
+    z80emu->msg_height = 3;
+
+    z80emu->mcv_width = x - z80emu->rgv_width;
+    z80emu->mcv_height = y - z80emu->msg_height;
 
     z80emu->rgv_win = newwin(z80emu->rgv_height, z80emu->rgv_width, 0, 0);
+    z80emu->msg_win = newwin(z80emu->msg_height, z80emu->msg_width, z80emu->mcv_height, z80emu->rgv_width);
     z80emu->mcv_win = newwin(z80emu->mcv_height, z80emu->mcv_width, 0, z80emu->rgv_width);
 
     box(z80emu->rgv_win, 0, 0);
+    box(z80emu->msg_win, 0, 0);
     box(z80emu->mcv_win, 0, 0);
-    //mvwin(z80emu->mcv_win, 0, 39);
     wbkgd(z80emu->rgv_win, COLOR_PAIR(3));
+    wbkgd(z80emu->msg_win, COLOR_PAIR(4));
     wbkgd(z80emu->mcv_win, COLOR_PAIR(3));
 }
 
@@ -81,12 +101,6 @@ void init_view(z80emu_t* z80emu) {
 }
 
 void resize_view(z80emu_t* z80emu) {
-    if (z80emu->rgv_win != NULL) {
-        delwin(z80emu->rgv_win);
-    }
-    if (z80emu->mcv_win != NULL) {
-        delwin(z80emu->mcv_win);
-    }
     init_windows(z80emu);
 }
 
@@ -226,25 +240,34 @@ void draw_memory(z80emu_t* z80emu) {
     uint8_t viz_width, viz_height;
     uint8_t nr_bytes_across;
     uint8_t x, y;
-    uint16_t i;
+    uint16_t i, start_addr;
     uint8_t b_count;
+    uint8_t ins_on_line;
     Z80EX_WORD pc;
+
+    viz_width = z80emu->mcv_width - 2;
+    viz_height = z80emu->mcv_height - 2;
+    nr_bytes_across = viz_width / 3;
 
     hex[2] = '\0';
 
     pc = z80ex_get_reg(z80emu->cpu, regPC);
 
-    //ins_on_line = (uint16_t)pc / viz_width;
+    ins_on_line = (uint16_t)pc / nr_bytes_across;
+    memset(z80emu->msg, 0, 255);
+    sprintf(z80emu->msg, "instruction on line: %d", ins_on_line);
+    debug_message(z80emu, z80emu->msg);
 
-    viz_width = z80emu->mcv_width - 2;
-    viz_height = z80emu->mcv_height - 2;
+    start_addr = 0;
+    if (ins_on_line >= viz_height) {
+        start_addr = (nr_bytes_across * (ins_on_line - 2));
+    }
 
-    nr_bytes_across = viz_width / 3;
     b_count = 1;
     x = 1;
     y = 1;
 
-    for (i = 0; i < 65536; i++) {
+    for (i = start_addr; i < 65536; i++) {
         sprintf(hex, "%02x", z80emu->memory[i]);
         if (i == (uint16_t)pc) {
             wattron(z80emu->mcv_win, COLOR_PAIR(7));
@@ -269,18 +292,13 @@ void draw_memory(z80emu_t* z80emu) {
     }
 }
 
-void debug_message(char* message) {
-    attron(COLOR_PAIR(3));
-    mvaddstr(28, 1, message);
-    attroff(COLOR_PAIR(3));
-}
-
 void refresh_view(z80emu_t* z80emu) {
     draw_reg_win(z80emu);
     draw_registers(z80emu);
     draw_memory(z80emu);
     refresh();
     wrefresh(z80emu->rgv_win);
+    wrefresh(z80emu->msg_win);
     wrefresh(z80emu->mcv_win);
 }
 
