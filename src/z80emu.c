@@ -14,6 +14,8 @@ typedef struct z80emu {
     FILE* rom_fh;
     uint8_t* memory;
     Z80EX_CONTEXT *cpu;
+    uint16_t pc_before;
+    uint16_t pc_after;
     WINDOW* reg_win;
     WINDOW* mem_win;
     WINDOW* msg_win;
@@ -31,6 +33,38 @@ typedef struct z80emu {
 } z80emu_t;
 
 z80emu_t Z80EMU;
+
+// BEGIN Callbacks
+Z80EX_BYTE mem_read(Z80EX_CONTEXT* cpu, Z80EX_WORD addr, int m1_state, void* user_data) {
+    z80emu_t* z80emu;
+    z80emu = user_data;
+    return z80emu->memory[(uint16_t)addr];
+}
+
+void mem_write(Z80EX_CONTEXT *cpu, Z80EX_WORD addr, Z80EX_BYTE value, void *z80emu) {
+    //printf("memory write: address[%016x] data[%08x]\n", addr, value);
+}
+
+Z80EX_BYTE port_read(Z80EX_CONTEXT *cpu, Z80EX_WORD port, void *z80emu) {
+    //printf("port read: address[%016x]\n", port);
+    return 0;
+}
+
+void port_write(Z80EX_CONTEXT *cpu, Z80EX_WORD port, Z80EX_BYTE value, void *z80emu) {
+    //printf("port write: address[%016x] data[%08x]\n", port, value);
+}
+
+Z80EX_BYTE int_read(Z80EX_CONTEXT *cpu, void *z80emu) {
+    //printf("interrupt vector!\n");
+    return 0;
+}
+
+Z80EX_BYTE mem_read_dasm(Z80EX_WORD addr, void *user_data) {
+    z80emu_t* z80emu;
+    z80emu = user_data;
+    return z80emu->memory[(uint16_t)addr];
+}
+// END Calbacks
 
 void debug_message(z80emu_t* z80emu, char* message) {
     wattron(z80emu->msg_win, COLOR_PAIR(3));
@@ -77,7 +111,7 @@ void init_windows(z80emu_t* z80emu) {
     z80emu->msg_height = 3;
 
     z80emu->asm_width = mid_width;
-    z80emu->asm_height = y - z80emu->msg_height;
+    z80emu->asm_height = 20;
 
     z80emu->mem_width = mem_width;
     z80emu->mem_height = y - z80emu->msg_height;
@@ -310,10 +344,22 @@ void draw_memory(z80emu_t* z80emu) {
     }
 }
 
+void draw_asm(z80emu_t* z80emu) {
+    char asm_before[255];
+    char asm_after[255];
+    int t, t2;
+
+    z80ex_dasm(asm_before, 255, 0, &t, &t2, mem_read_dasm, z80emu->pc_before, z80emu);
+    z80ex_dasm(asm_after, 255, 0, &t, &t2, mem_read_dasm, z80emu->pc_after, z80emu);
+    mvwaddstr(z80emu->asm_win, 2, 1, asm_before);
+    mvwaddstr(z80emu->asm_win, 1, 1, asm_after);
+}
+
 void refresh_view(z80emu_t* z80emu) {
     draw_reg_win(z80emu);
     draw_registers(z80emu);
     draw_memory(z80emu);
+    draw_asm(z80emu);
     refresh();
     wrefresh(z80emu->reg_win);
     wrefresh(z80emu->msg_win);
@@ -321,42 +367,12 @@ void refresh_view(z80emu_t* z80emu) {
     wrefresh(z80emu->asm_win);
 }
 
-void execute_instruction(Z80EX_CONTEXT *cpu) {
+void execute_instruction(z80emu_t* z80emu) {
     int t_states;
-    t_states = z80ex_step(cpu);
+    z80emu->pc_before = z80ex_get_reg(z80emu->cpu, regPC);
+    t_states = z80ex_step(z80emu->cpu);
+    z80emu->pc_after = z80ex_get_reg(z80emu->cpu, regPC);
 }
-
-// BEGIN Callbacks
-Z80EX_BYTE mem_read(Z80EX_CONTEXT* cpu, Z80EX_WORD addr, int m1_state, void* user_data) {
-    z80emu_t* z80emu;
-    z80emu = user_data;
-    return z80emu->memory[(uint16_t)addr];
-}
-
-void mem_write(Z80EX_CONTEXT *cpu, Z80EX_WORD addr, Z80EX_BYTE value, void *z80emu) {
-    //printf("memory write: address[%016x] data[%08x]\n", addr, value);
-}
-
-Z80EX_BYTE port_read(Z80EX_CONTEXT *cpu, Z80EX_WORD port, void *z80emu) {
-    //printf("port read: address[%016x]\n", port);
-    return 0;
-}
-
-void port_write(Z80EX_CONTEXT *cpu, Z80EX_WORD port, Z80EX_BYTE value, void *z80emu) {
-    //printf("port write: address[%016x] data[%08x]\n", port, value);
-}
-
-Z80EX_BYTE int_read(Z80EX_CONTEXT *cpu, void *z80emu) {
-    //printf("interrupt vector!\n");
-    return 0;
-}
-
-Z80EX_BYTE mem_read_dasm(Z80EX_WORD addr, void *user_data) {
-    z80emu_t* z80emu;
-    z80emu = user_data;
-    return z80emu->memory[(uint16_t)addr];
-}
-// END Calbacks
 
 void handle_winch(int sig){
     signal(SIGWINCH, SIG_IGN);
@@ -441,7 +457,7 @@ void main_program(z80emu_t* z80emu) {
             }
         }
         if (!pause) {
-            execute_instruction(z80emu->cpu);
+            execute_instruction(z80emu);
             refresh_view(z80emu);
         }
     }
