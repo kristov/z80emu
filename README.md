@@ -1,5 +1,7 @@
 # z80emu - graphical emulator for a Z80 CPU
 
+![Alt text](/screenshots/showcase.png?raw=true "The UI")
+
 I wanted a terminal/ncurses based interface to a Z80 chip emulator without being attached to any specific microcomputer implementation (ie: ZX Spectrum). This is so I can see at the register and instruction level what the chip is doing and use it as a pausable and modifiable interpreter.
 
 There are three panels:
