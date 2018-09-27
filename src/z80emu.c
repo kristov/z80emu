@@ -10,12 +10,23 @@
 #include "z80ex.h"
 #include "z80ex_dasm.h"
 
+// Which sub-window has focus
+enum win_mode {
+    MODE_REG,
+    MODE_ASM,
+    MODE_MEM
+};
+#define MODE_ZERO 0x00
+#define MODE_MAX 0x02
+
+// An instance of an emulator UI
 typedef struct z80emu {
     FILE* rom_fh;
     uint8_t* memory;
     Z80EX_CONTEXT *cpu;
     uint16_t pc_before;
     uint16_t pc_after;
+    enum win_mode win_mode;
     WINDOW* reg_win;
     WINDOW* mem_win;
     WINDOW* msg_win;
@@ -32,46 +43,53 @@ typedef struct z80emu {
     char msg[255];
 } z80emu_t;
 
+// Only one emulation happening at a time
 z80emu_t Z80EMU;
 
-// BEGIN Callbacks
+// Z80EX-Callback for a CPU memory read
 Z80EX_BYTE mem_read(Z80EX_CONTEXT* cpu, Z80EX_WORD addr, int m1_state, void* user_data) {
     z80emu_t* z80emu;
     z80emu = user_data;
     return z80emu->memory[(uint16_t)addr];
 }
 
+// Z80EX-Callback for a CPU memory write
 void mem_write(Z80EX_CONTEXT *cpu, Z80EX_WORD addr, Z80EX_BYTE value, void *z80emu) {
     //printf("memory write: address[%016x] data[%08x]\n", addr, value);
 }
 
+// Z80EX-Callback for a CPU port read
 Z80EX_BYTE port_read(Z80EX_CONTEXT *cpu, Z80EX_WORD port, void *z80emu) {
     //printf("port read: address[%016x]\n", port);
     return 0;
 }
 
+// Z80EX-Callback for a CPU port write
 void port_write(Z80EX_CONTEXT *cpu, Z80EX_WORD port, Z80EX_BYTE value, void *z80emu) {
     //printf("port write: address[%016x] data[%08x]\n", port, value);
 }
 
+// Z80EX-Callback for an interrupt read
 Z80EX_BYTE int_read(Z80EX_CONTEXT *cpu, void *z80emu) {
     //printf("interrupt vector!\n");
     return 0;
 }
 
+// Z80EX-Callback for DASM memory read
 Z80EX_BYTE mem_read_dasm(Z80EX_WORD addr, void *user_data) {
     z80emu_t* z80emu;
     z80emu = user_data;
     return z80emu->memory[(uint16_t)addr];
 }
-// END Calbacks
 
+// Print a debug message in the message window
 void debug_message(z80emu_t* z80emu, char* message) {
     wattron(z80emu->msg_win, COLOR_PAIR(3));
     mvwaddstr(z80emu->msg_win, 1, 1, message);
     wattroff(z80emu->msg_win, COLOR_PAIR(3));
 }
 
+// Destroy a z80emu instance
 void cleanup_context(z80emu_t* z80emu) {
     if (z80emu->memory != NULL) {
         free(z80emu->memory);
@@ -83,10 +101,11 @@ void cleanup_context(z80emu_t* z80emu) {
     z80ex_destroy(z80emu->cpu);
 }
 
+// Create all UI sub-windows
 void init_windows(z80emu_t* z80emu) {
     int x, y;
     uint8_t reg_width;
-    uint8_t right_width, mem_width, mid_width;
+    uint8_t mem_width, mid_width;
 
     getmaxyx(stdscr, y, x);
     if (z80emu->reg_win != NULL) {
@@ -126,11 +145,12 @@ void init_windows(z80emu_t* z80emu) {
     box(z80emu->mem_win, 0, 0);
     box(z80emu->asm_win, 0, 0);
     wbkgd(z80emu->reg_win, COLOR_PAIR(3));
-    wbkgd(z80emu->msg_win, COLOR_PAIR(4));
+    wbkgd(z80emu->msg_win, COLOR_PAIR(3));
     wbkgd(z80emu->mem_win, COLOR_PAIR(3));
     wbkgd(z80emu->asm_win, COLOR_PAIR(3));
 }
 
+// Curses init
 void init_view(z80emu_t* z80emu) {
     setlocale(LC_ALL, "");
     initscr();
@@ -145,6 +165,7 @@ void init_view(z80emu_t* z80emu) {
         init_pair(7, COLOR_BLACK, COLOR_MAGENTA);
         init_pair(8, COLOR_WHITE, COLOR_BLACK);
     }
+    keypad(stdscr, TRUE);
     noecho();
     cbreak();
     timeout(1000);
@@ -152,10 +173,12 @@ void init_view(z80emu_t* z80emu) {
     init_windows(z80emu);
 }
 
+// Resize event
 void resize_view(z80emu_t* z80emu) {
     init_windows(z80emu);
 }
 
+// Draw the inside borders of the register window
 void draw_reg_win(z80emu_t* z80emu) {
     int x, y;
 
@@ -194,6 +217,7 @@ void draw_reg_win(z80emu_t* z80emu) {
     wattroff(z80emu->reg_win, COLOR_PAIR(2));
 }
 
+// Draw a single 8 bit register
 void draw_reg_8(z80emu_t* z80emu, uint8_t x, uint8_t y, uint8_t value) {
     char dec[4];
     char hex[3];
@@ -216,14 +240,14 @@ void draw_reg_8(z80emu_t* z80emu, uint8_t x, uint8_t y, uint8_t value) {
         }
     }
 
+    wattron(z80emu->reg_win, COLOR_PAIR(6));
     mvwaddstr(z80emu->reg_win, y, x, dec); x += 4;
     mvwaddstr(z80emu->reg_win, y, x, hex); x += 3;
-
-    wattron(z80emu->reg_win, COLOR_PAIR(4));
     mvwaddstr(z80emu->reg_win, y, x, bin);
-    wattroff(z80emu->reg_win, COLOR_PAIR(4));
+    wattroff(z80emu->reg_win, COLOR_PAIR(6));
 }
 
+// Draw a single 16 bit register
 void draw_reg_16(z80emu_t* z80emu, uint8_t x, uint8_t y, uint16_t value) {
     char dec[6];
     char hex[5];
@@ -246,11 +270,14 @@ void draw_reg_16(z80emu_t* z80emu, uint8_t x, uint8_t y, uint16_t value) {
         }
     }
 
+    wattron(z80emu->reg_win, COLOR_PAIR(6));
     mvwaddstr(z80emu->reg_win, y, x, dec); x += 8;
     mvwaddstr(z80emu->reg_win, y, x, hex); x += 7;
     mvwaddstr(z80emu->reg_win, y, x, bin);
+    wattroff(z80emu->reg_win, COLOR_PAIR(6));
 }
 
+// Draw a single 16 bit register as two separate 8 bit registers
 void draw_reg_16_as_two_8(z80emu_t* z80emu, uint8_t x, uint8_t y, uint16_t value) {
     uint8_t lower;
     uint8_t higher;
@@ -262,6 +289,7 @@ void draw_reg_16_as_two_8(z80emu_t* z80emu, uint8_t x, uint8_t y, uint16_t value
     draw_reg_8(z80emu, x + 16, y, lower);
 }
 
+// Draw the registers in the register window
 void draw_registers(z80emu_t* z80emu) {
     Z80EX_WORD reg_word;
 
@@ -287,6 +315,7 @@ void draw_registers(z80emu_t* z80emu) {
     draw_reg_16(z80emu, 1, 20, reg_word);
 }
 
+// Draw the memory view window
 void draw_memory(z80emu_t* z80emu) {
     char hex[3];
     uint8_t viz_width, viz_height;
@@ -308,7 +337,7 @@ void draw_memory(z80emu_t* z80emu) {
     ins_on_line = (uint16_t)pc / nr_bytes_across;
     memset(z80emu->msg, 0, 255);
     sprintf(z80emu->msg, "instruction on line: %d", ins_on_line);
-    debug_message(z80emu, z80emu->msg);
+    //debug_message(z80emu, z80emu->msg);
 
     start_addr = 0;
     if (ins_on_line >= viz_height) {
@@ -344,6 +373,7 @@ void draw_memory(z80emu_t* z80emu) {
     }
 }
 
+// Draw the ASM window
 void draw_asm(z80emu_t* z80emu) {
     char asm_before[255];
     char asm_after[255];
@@ -355,7 +385,32 @@ void draw_asm(z80emu_t* z80emu) {
     mvwaddstr(z80emu->asm_win, 1, 1, asm_after);
 }
 
+// Color the border of the selected window
+void selected_window_color(z80emu_t* z80emu) {
+    switch (z80emu->win_mode) {
+        case MODE_REG:
+            wbkgd(z80emu->reg_win, COLOR_PAIR(4));
+            wbkgd(z80emu->asm_win, COLOR_PAIR(3));
+            wbkgd(z80emu->mem_win, COLOR_PAIR(3));
+            break;
+        case MODE_ASM:
+            wbkgd(z80emu->reg_win, COLOR_PAIR(3));
+            wbkgd(z80emu->asm_win, COLOR_PAIR(4));
+            wbkgd(z80emu->mem_win, COLOR_PAIR(3));
+            break;
+        case MODE_MEM:
+            wbkgd(z80emu->reg_win, COLOR_PAIR(3));
+            wbkgd(z80emu->asm_win, COLOR_PAIR(3));
+            wbkgd(z80emu->mem_win, COLOR_PAIR(4));
+            break;
+        default:
+            break;
+    }
+}
+
+// Redraw everything
 void refresh_view(z80emu_t* z80emu) {
+    selected_window_color(z80emu);
     draw_reg_win(z80emu);
     draw_registers(z80emu);
     draw_memory(z80emu);
@@ -367,13 +422,31 @@ void refresh_view(z80emu_t* z80emu) {
     wrefresh(z80emu->asm_win);
 }
 
+// Handle movement key presses in the memory view
+void key_move_handle_mem(z80emu_t* z80emu, int c) {
+    switch (c) {
+        case KEY_DOWN:
+            break;
+        default:
+            break;
+    }
+}
+
+// Handle all movement key presses
+void key_move_handle(z80emu_t* z80emu, int c) {
+    if (z80emu->win_mode == MODE_MEM) {
+        key_move_handle_mem(z80emu, c);
+    }
+}
+
+// Execute an instruction
 void execute_instruction(z80emu_t* z80emu) {
-    int t_states;
     z80emu->pc_before = z80ex_get_reg(z80emu->cpu, regPC);
-    t_states = z80ex_step(z80emu->cpu);
+    z80ex_step(z80emu->cpu);
     z80emu->pc_after = z80ex_get_reg(z80emu->cpu, regPC);
 }
 
+// Window resize events
 void handle_winch(int sig){
     signal(SIGWINCH, SIG_IGN);
     endwin();
@@ -382,17 +455,20 @@ void handle_winch(int sig){
     signal(SIGWINCH, handle_winch);
 }
 
+// Ctrl-C events
 static void handle_int(int sig) {
     cleanup_context(&Z80EMU);
     endwin();
     exit(0);
 }
 
+// Install signal handles
 void install_signal_handlers() {
     signal(SIGINT, handle_int);
     signal(SIGWINCH, handle_winch);
 }
 
+// Load a ROM file from disk into 64k memory
 void load_binary_rom(z80emu_t* z80emu, char* rom_file) {
     unsigned long len;
 
@@ -414,10 +490,12 @@ void load_binary_rom(z80emu_t* z80emu, char* rom_file) {
     fclose(z80emu->rom_fh);
 }
 
+// Usage
 void print_help() {
     printf("Usage: z80emu [-r<binary rom file>]\n");
 }
 
+// initialize an instance of a z80 emulator
 void init_z80emu(z80emu_t* z80emu) {
     memset(z80emu, 0, sizeof(z80emu_t));
     z80emu->memory = malloc(sizeof(uint8_t) * 65536);
@@ -427,8 +505,9 @@ void init_z80emu(z80emu_t* z80emu) {
     memset(z80emu->memory, 0, sizeof(uint8_t) * 65536);
 }
 
+// The main entry point after the instance is set up
 void main_program(z80emu_t* z80emu) {
-    char c;
+    int c;
     uint8_t pause;
 
     z80emu->cpu = z80ex_create(mem_read, z80emu, mem_write, z80emu, port_read, z80emu, port_write, z80emu, int_read, z80emu);
@@ -452,6 +531,29 @@ void main_program(z80emu_t* z80emu) {
                     endwin();
                     exit(0);
                     break;
+                case 0x09: // TAB
+                    z80emu->win_mode += 1;
+                    if (z80emu->win_mode > MODE_MAX) {
+                        z80emu->win_mode = MODE_ZERO;
+                    }
+                    refresh_view(z80emu);
+                    break;
+                case KEY_DOWN:
+                    key_move_handle(z80emu, c);
+                    refresh_view(z80emu);
+                    break;
+                case KEY_UP:
+                    key_move_handle(z80emu, c);
+                    refresh_view(z80emu);
+                    break;
+                case KEY_RIGHT:
+                    key_move_handle(z80emu, c);
+                    refresh_view(z80emu);
+                    break;
+                case KEY_LEFT:
+                    key_move_handle(z80emu, c);
+                    refresh_view(z80emu);
+                    break;
                 default:
                     break;
             }
@@ -463,8 +565,8 @@ void main_program(z80emu_t* z80emu) {
     }
 }
 
+// Parse command args and set up the instance
 int main(int argc, char *argv[]) {
-    char* rom_file;
     int8_t c;
 	int option_index = 0;
 

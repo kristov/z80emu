@@ -1,7 +1,10 @@
+CC := gcc
+CFLAGS := -Wall -Werror -ggdb
+
 LDFLAGS=-lncursesw
 INCLUDE=-Iexternal/z80ex/include/
 z80emu: src/z80emu.c external/z80ex/z80ex.o external/z80ex/z80ex_dasm.o
-	gcc $(INCLUDE) $(LDFLAGS) -o $@ external/z80ex/z80ex.o external/z80ex/z80ex_dasm.o $<
+	$(CC) $(CFLAGS) $(INCLUDE) $(LDFLAGS) -o $@ external/z80ex/z80ex.o external/z80ex/z80ex_dasm.o $<
 
 external/z80ex/z80ex.o:
 	cd external/z80ex/ && make static
