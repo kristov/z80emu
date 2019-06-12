@@ -507,22 +507,25 @@ void init_z80emu(z80emu_t* z80emu) {
 
 // The main entry point after the instance is set up
 void main_program(z80emu_t* z80emu) {
-    int c;
-    uint8_t pause;
-
     z80emu->cpu = z80ex_create(mem_read, z80emu, mem_write, z80emu, port_read, z80emu, port_write, z80emu, int_read, z80emu);
 
     init_view(z80emu);
     install_signal_handlers();
     refresh_view(z80emu);
 
-    pause = 1;
-
+    uint8_t pause = 1;
+    int c;
     while (1) {
         c = getch();
         if (ERR != c) {
             pause = 1;
             switch (c) {
+                case 's':
+                    if (!pause) {
+                        execute_instruction(z80emu);
+                        refresh_view(z80emu);
+                    }
+                    break;
                 case ' ':
                     pause = !pause;
                     break;
@@ -568,20 +571,20 @@ void main_program(z80emu_t* z80emu) {
 // Parse command args and set up the instance
 int main(int argc, char *argv[]) {
     int8_t c;
-	int option_index = 0;
+    int option_index = 0;
 
     init_z80emu(&Z80EMU);
 
-	static struct option long_options[] = {
+    static struct option long_options[] = {
         {"rom", optional_argument, 0, 'r'},
         {0, 0, 0, 0}
     };
 
     while (1) {
-		c = getopt_long(argc, argv, "r:", long_options, &option_index);
-		if (c == -1) {
-			break;
-		}
+        c = getopt_long(argc, argv, "r:", long_options, &option_index);
+        if (c == -1) {
+            break;
+        }
         switch (c) {
             case 'r':
                 load_binary_rom(&Z80EMU, optarg);
