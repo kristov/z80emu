@@ -7,6 +7,8 @@ typedef struct asm_win {
     WINDOW* win;
     uint8_t width;
     uint8_t height;
+    char* history;
+    uint8_t next_history;
 } asm_win_t;
 
 void asm_win_destroy(asm_win_t* asm_win);

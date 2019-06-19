@@ -157,6 +157,8 @@ void draw_asm(z80emu_t* z80emu) {
     char asm_before[255];
     char asm_after[255];
     int t, t2;
+    memset(asm_before, 0, 255);
+    memset(asm_after, 0, 255);
     z80ex_dasm(asm_before, 255, 0, &t, &t2, mem_read_dasm, z80emu->pc_before, z80emu);
     z80ex_dasm(asm_after, 255, 0, &t, &t2, mem_read_dasm, z80emu->pc_after, z80emu);
     asm_win_draw(&z80emu->asm_win, asm_before, asm_after);
