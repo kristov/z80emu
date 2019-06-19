@@ -11,6 +11,7 @@
 #include "z80ex_dasm.h"
 #include "reg_win.h"
 #include "mem_win.h"
+#include "asm_win.h"
 
 // Which sub-window has focus
 enum win_mode {
@@ -31,12 +32,10 @@ typedef struct z80emu {
     enum win_mode win_mode;
     mem_win_t mem_win;
     reg_win_t reg_win;
+    asm_win_t asm_win;
     WINDOW* msg_win;
-    WINDOW* asm_win;
     uint8_t msg_width;
     uint8_t msg_height;
-    uint8_t asm_width;
-    uint8_t asm_height;
     uint8_t pause;
     char msg[255];
 } z80emu_t;
@@ -95,7 +94,7 @@ void cleanup_context(z80emu_t* z80emu) {
     reg_win_destroy(&z80emu->reg_win);
     mem_win_destroy(&z80emu->mem_win);
     delwin(z80emu->msg_win);
-    delwin(z80emu->asm_win);
+    asm_win_destroy(&z80emu->asm_win);
     z80ex_destroy(z80emu->cpu);
 }
 
@@ -113,27 +112,17 @@ void init_windows(z80emu_t* z80emu) {
     reg_width = 33;
     mid_width = 33;
 
-    z80emu->mem_win.width = x - reg_width - mid_width;
-
     z80emu->msg_width = x - reg_width;
     z80emu->msg_height = 3;
 
-    z80emu->asm_width = mid_width;
-    z80emu->asm_height = 20;
-
-    z80emu->mem_win.height = y - z80emu->msg_height;
-
     reg_win_init(&z80emu->reg_win, 33, y, 0, 0);
 
-    z80emu->msg_win = newwin(z80emu->msg_height, z80emu->msg_width, z80emu->mem_win.height, reg_width);
+    z80emu->msg_win = newwin(z80emu->msg_height, z80emu->msg_width, y - z80emu->msg_height, reg_width);
     box(z80emu->msg_win, 0, 0);
     wbkgd(z80emu->msg_win, COLOR_PAIR(3));
 
     mem_win_init(&z80emu->mem_win, x - reg_width - mid_width, y - z80emu->msg_height, reg_width + mid_width, 0);
-
-    z80emu->asm_win = newwin(z80emu->asm_height, z80emu->asm_width, 0, mid_width);
-    box(z80emu->asm_win, 0, 0);
-    wbkgd(z80emu->asm_win, COLOR_PAIR(3));
+    asm_win_init(&z80emu->asm_win, mid_width, 20, mid_width, 0);
 }
 
 // Curses init
@@ -164,18 +153,13 @@ void resize_view(z80emu_t* z80emu) {
     init_windows(z80emu);
 }
 
-// Draw the ASM window
 void draw_asm(z80emu_t* z80emu) {
     char asm_before[255];
     char asm_after[255];
     int t, t2;
-
     z80ex_dasm(asm_before, 255, 0, &t, &t2, mem_read_dasm, z80emu->pc_before, z80emu);
     z80ex_dasm(asm_after, 255, 0, &t, &t2, mem_read_dasm, z80emu->pc_after, z80emu);
-    mvwaddstr(z80emu->asm_win, 2, 1, "B               ");
-    mvwaddstr(z80emu->asm_win, 2, 3, asm_before);
-    mvwaddstr(z80emu->asm_win, 1, 1, "A               ");
-    mvwaddstr(z80emu->asm_win, 1, 3, asm_after);
+    asm_win_draw(&z80emu->asm_win, asm_before, asm_after);
 }
 
 // Color the border of the selected window
@@ -183,17 +167,17 @@ void selected_window_color(z80emu_t* z80emu) {
     switch (z80emu->win_mode) {
         case MODE_REG:
             reg_win_select_window(&z80emu->reg_win);
-            wbkgd(z80emu->asm_win, COLOR_PAIR(3));
+            asm_win_unselect_window(&z80emu->asm_win);
             mem_win_unselect_window(&z80emu->mem_win);
             break;
         case MODE_ASM:
             reg_win_unselect_window(&z80emu->reg_win);
-            wbkgd(z80emu->asm_win, COLOR_PAIR(4));
+            asm_win_select_window(&z80emu->asm_win);
             mem_win_unselect_window(&z80emu->mem_win);
             break;
         case MODE_MEM:
             reg_win_unselect_window(&z80emu->reg_win);
-            wbkgd(z80emu->asm_win, COLOR_PAIR(3));
+            asm_win_unselect_window(&z80emu->asm_win);
             mem_win_select_window(&z80emu->mem_win);
             break;
         default:
@@ -226,7 +210,7 @@ void refresh_view(z80emu_t* z80emu) {
     wrefresh(z80emu->reg_win.win);
     wrefresh(z80emu->msg_win);
     wrefresh(z80emu->mem_win.win);
-    wrefresh(z80emu->asm_win);
+    wrefresh(z80emu->asm_win.win);
 }
 
 // Handle movement key presses in the memory view
