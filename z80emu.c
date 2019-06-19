@@ -9,6 +9,7 @@
 #include <locale.h>
 #include "z80ex.h"
 #include "z80ex_dasm.h"
+#include "reg_win.h"
 #include "mem_win.h"
 
 // Which sub-window has focus
@@ -29,11 +30,9 @@ typedef struct z80emu {
     uint16_t pc_after;
     enum win_mode win_mode;
     mem_win_t mem_win;
-    WINDOW* reg_win;
+    reg_win_t reg_win;
     WINDOW* msg_win;
     WINDOW* asm_win;
-    uint8_t reg_width;
-    uint8_t reg_height;
     uint8_t msg_width;
     uint8_t msg_height;
     uint8_t asm_width;
@@ -93,7 +92,7 @@ void cleanup_context(z80emu_t* z80emu) {
     if (z80emu->memory != NULL) {
         free(z80emu->memory);
     }
-    delwin(z80emu->reg_win);
+    reg_win_destroy(&z80emu->reg_win);
     mem_win_destroy(&z80emu->mem_win);
     delwin(z80emu->msg_win);
     delwin(z80emu->asm_win);
@@ -107,18 +106,12 @@ void init_windows(z80emu_t* z80emu) {
     uint8_t mid_width;
 
     getmaxyx(stdscr, y, x);
-    if (z80emu->reg_win != NULL) {
-        delwin(z80emu->reg_win);
-    }
     if (z80emu->msg_win != NULL) {
         delwin(z80emu->msg_win);
     }
 
     reg_width = 33;
     mid_width = 33;
-
-    z80emu->reg_width = reg_width;
-    z80emu->reg_height = y;
 
     z80emu->mem_win.width = x - reg_width - mid_width;
 
@@ -130,21 +123,16 @@ void init_windows(z80emu_t* z80emu) {
 
     z80emu->mem_win.height = y - z80emu->msg_height;
 
-    z80emu->reg_win = newwin(z80emu->reg_height, z80emu->reg_width, 0, 0);
+    reg_win_init(&z80emu->reg_win, 33, y, 0, 0);
+
     z80emu->msg_win = newwin(z80emu->msg_height, z80emu->msg_width, z80emu->mem_win.height, reg_width);
+    box(z80emu->msg_win, 0, 0);
+    wbkgd(z80emu->msg_win, COLOR_PAIR(3));
 
     mem_win_init(&z80emu->mem_win, x - reg_width - mid_width, y - z80emu->msg_height, reg_width + mid_width, 0);
 
-    z80emu->mem_win.win = newwin(z80emu->mem_win.height, z80emu->mem_win.width, 0, reg_width + mid_width);
     z80emu->asm_win = newwin(z80emu->asm_height, z80emu->asm_width, 0, mid_width);
-
-    box(z80emu->reg_win, 0, 0);
-    box(z80emu->msg_win, 0, 0);
-    box(z80emu->mem_win.win, 0, 0);
     box(z80emu->asm_win, 0, 0);
-    wbkgd(z80emu->reg_win, COLOR_PAIR(3));
-    wbkgd(z80emu->msg_win, COLOR_PAIR(3));
-    wbkgd(z80emu->mem_win.win, COLOR_PAIR(3));
     wbkgd(z80emu->asm_win, COLOR_PAIR(3));
 }
 
@@ -176,143 +164,6 @@ void resize_view(z80emu_t* z80emu) {
     init_windows(z80emu);
 }
 
-// Draw the inside borders of the register window
-void draw_reg_win(z80emu_t* z80emu) {
-    int x, y;
-
-    x = 1;
-    y = 1;
-    wattron(z80emu->reg_win, COLOR_PAIR(2));
-    mvwaddstr(z80emu->reg_win, y, x, "PC            [program counter]"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "───────────────┬───────────────"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "A [accumulator]│F       [flags]"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "000 00 00000000│000 00 00000000"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "───────────────┼───────────────"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "B     [counter]│C        [port]"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "000 00 00000000│000 00 00000000"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "───────────────┼───────────────"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "D              │E              "); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "000 00 00000000│000 00 00000000"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "───────────────┼───────────────"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "H              │L              "); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "000 00 00000000│000 00 00000000"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "───────────────┴───────────────"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "I                   [interrupt]"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "───────────────────────────────"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "R                     [refresh]"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "───────────────────────────────"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "SP              [stack pointer]"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "───────────────────────────────"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "IX            IXH      IXL     "); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "───────────────────────────────"); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "IY            IYH      IYL     "); y++;
-    mvwaddstr(z80emu->reg_win, y, x, "00000 - 0000 - 0000000000000000"); y++;
-    wattroff(z80emu->reg_win, COLOR_PAIR(2));
-}
-
-// Draw a single 8 bit register
-void draw_reg_8(z80emu_t* z80emu, uint8_t x, uint8_t y, uint8_t value) {
-    char dec[4];
-    char hex[3];
-    char bin[9];
-    uint8_t i;
-
-    dec[3] = '\0';
-    hex[2] = '\0';
-    bin[8] = '\0';
-
-    sprintf(dec, "%3d", value);
-    sprintf(hex, "%02x", value);
-
-    for (i = 0; i < 8; i++) {
-        if ((value >> i) & 1) {
-            bin[7 - i] = '1';
-        }
-        else {
-            bin[7 - i] = '0';
-        }
-    }
-
-    wattron(z80emu->reg_win, COLOR_PAIR(6));
-    mvwaddstr(z80emu->reg_win, y, x, dec); x += 4;
-    mvwaddstr(z80emu->reg_win, y, x, hex); x += 3;
-    mvwaddstr(z80emu->reg_win, y, x, bin);
-    wattroff(z80emu->reg_win, COLOR_PAIR(6));
-}
-
-// Draw a single 16 bit register
-void draw_reg_16(z80emu_t* z80emu, uint8_t x, uint8_t y, uint16_t value) {
-    char dec[6];
-    char hex[5];
-    char bin[17];
-    uint8_t i;
-
-    dec[5] = '\0';
-    hex[4] = '\0';
-    bin[16] = '\0';
-
-    sprintf(dec, "%5d", value);
-    sprintf(hex, "%04x", value);
-
-    for (i = 0; i < 16; i++) {
-        if ((value >> i) & 1) {
-            bin[15 - i] = '1';
-        }
-        else {
-            bin[15 - i] = '0';
-        }
-    }
-
-    wattron(z80emu->reg_win, COLOR_PAIR(6));
-    mvwaddstr(z80emu->reg_win, y, x, dec); x += 8;
-    mvwaddstr(z80emu->reg_win, y, x, hex); x += 7;
-    mvwaddstr(z80emu->reg_win, y, x, bin);
-    wattroff(z80emu->reg_win, COLOR_PAIR(6));
-}
-
-// Draw a single 16 bit register as two separate 8 bit registers
-void draw_reg_16_as_two_8(z80emu_t* z80emu, uint8_t x, uint8_t y, uint16_t value) {
-    uint8_t lower;
-    uint8_t higher;
-
-    lower = (uint8_t)(value & 0xFF);
-    higher = (uint8_t)(value >> 8);
-
-    draw_reg_8(z80emu, x, y, higher);
-    draw_reg_8(z80emu, x + 16, y, lower);
-}
-
-// Draw the registers in the register window
-void draw_registers(z80emu_t* z80emu) {
-    Z80EX_WORD reg_word;
-
-    reg_word = z80ex_get_reg(z80emu->cpu, regPC);
-    draw_reg_16(z80emu, 1, 2, reg_word);
-
-    reg_word = z80ex_get_reg(z80emu->cpu, regAF);
-    draw_reg_16_as_two_8(z80emu, 1, 5, reg_word);
-
-    reg_word = z80ex_get_reg(z80emu->cpu, regBC);
-    draw_reg_16_as_two_8(z80emu, 1, 8, reg_word);
-
-    reg_word = z80ex_get_reg(z80emu->cpu, regDE);
-    draw_reg_16_as_two_8(z80emu, 1, 11, reg_word);
-
-    reg_word = z80ex_get_reg(z80emu->cpu, regHL);
-    draw_reg_16_as_two_8(z80emu, 1, 14, reg_word);
-
-    reg_word = z80ex_get_reg(z80emu->cpu, regI);
-    draw_reg_16(z80emu, 1, 17, reg_word);
-
-    reg_word = z80ex_get_reg(z80emu->cpu, regR);
-    draw_reg_16(z80emu, 1, 20, reg_word);
-}
-
 // Draw the ASM window
 void draw_asm(z80emu_t* z80emu) {
     char asm_before[255];
@@ -331,17 +182,17 @@ void draw_asm(z80emu_t* z80emu) {
 void selected_window_color(z80emu_t* z80emu) {
     switch (z80emu->win_mode) {
         case MODE_REG:
-            wbkgd(z80emu->reg_win, COLOR_PAIR(4));
+            reg_win_select_window(&z80emu->reg_win);
             wbkgd(z80emu->asm_win, COLOR_PAIR(3));
             mem_win_unselect_window(&z80emu->mem_win);
             break;
         case MODE_ASM:
-            wbkgd(z80emu->reg_win, COLOR_PAIR(3));
+            reg_win_unselect_window(&z80emu->reg_win);
             wbkgd(z80emu->asm_win, COLOR_PAIR(4));
             mem_win_unselect_window(&z80emu->mem_win);
             break;
         case MODE_MEM:
-            wbkgd(z80emu->reg_win, COLOR_PAIR(3));
+            reg_win_unselect_window(&z80emu->reg_win);
             wbkgd(z80emu->asm_win, COLOR_PAIR(3));
             mem_win_select_window(&z80emu->mem_win);
             break;
@@ -350,15 +201,29 @@ void selected_window_color(z80emu_t* z80emu) {
     }
 }
 
+// Draw the registers in the register window
+void populate_registers(z80emu_t* z80emu) {
+    z80emu->reg_win.PC = (uint16_t)z80ex_get_reg(z80emu->cpu, regPC);
+    z80emu->reg_win.AF = (uint16_t)z80ex_get_reg(z80emu->cpu, regAF);
+    z80emu->reg_win.BC = (uint16_t)z80ex_get_reg(z80emu->cpu, regBC);
+    z80emu->reg_win.DE = (uint16_t)z80ex_get_reg(z80emu->cpu, regDE);
+    z80emu->reg_win.HL = (uint16_t)z80ex_get_reg(z80emu->cpu, regHL);
+    z80emu->reg_win.I = (uint16_t)z80ex_get_reg(z80emu->cpu, regI);
+    z80emu->reg_win.R = (uint16_t)z80ex_get_reg(z80emu->cpu, regR);
+    z80emu->reg_win.SP = (uint16_t)z80ex_get_reg(z80emu->cpu, regSP);
+    z80emu->reg_win.IX = (uint16_t)z80ex_get_reg(z80emu->cpu, regIX);
+    z80emu->reg_win.IY = (uint16_t)z80ex_get_reg(z80emu->cpu, regIY);
+}
+
 // Redraw everything
 void refresh_view(z80emu_t* z80emu) {
     selected_window_color(z80emu);
-    draw_reg_win(z80emu);
-    draw_registers(z80emu);
+    populate_registers(z80emu);
+    reg_win_draw(&z80emu->reg_win);
     mem_win_draw(&z80emu->mem_win, z80emu->memory, (uint16_t)z80ex_get_reg(z80emu->cpu, regPC));
     draw_asm(z80emu);
     refresh();
-    wrefresh(z80emu->reg_win);
+    wrefresh(z80emu->reg_win.win);
     wrefresh(z80emu->msg_win);
     wrefresh(z80emu->mem_win.win);
     wrefresh(z80emu->asm_win);
