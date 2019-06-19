@@ -37,9 +37,14 @@ void asm_win_draw(asm_win_t* asm_win, char* asm_before, char* asm_after) {
         asm_win->next_history = 0;
     }
     mvwprintw(asm_win->win, 1, 1, "%d  ", len);
+    uint16_t top = asm_win->next_history;
     for (uint16_t i = 0; i < asm_win->height; i++) {
         mvwaddstr(asm_win->win, i + 1, 1, "                    ");
-        mvwprintw(asm_win->win, i + 1, 1, "%s", &asm_win->history[i * 20]);
+        mvwprintw(asm_win->win, i + 1, 1, "%s", &asm_win->history[top * 20]);
+        top++;
+        if (top >= asm_win->height) {
+            top = 0;
+        }
     }
 }
 
