@@ -1,5 +1,6 @@
 #include <ncurses.h>
 #include "mem_win.h"
+#include "ctk.h"
 
 void mem_win_destroy(mem_win_t* mem_win) {
     delwin(mem_win->win);
@@ -11,7 +12,7 @@ void mem_win_init(mem_win_t* mem_win, uint8_t width, uint8_t height, uint8_t x, 
     }
     mem_win->win = newwin(height, width, y, x);
     box(mem_win->win, 0, 0);
-    wbkgd(mem_win->win, COLOR_PAIR(3));
+    wbkgd(mem_win->win, COLOR_PAIR(CTK_COLOR_WINDOW));
 }
 
 void mem_win_draw(mem_win_t* mem_win, uint8_t* memory, uint16_t pc) {
@@ -36,14 +37,14 @@ void mem_win_draw(mem_win_t* mem_win, uint8_t* memory, uint16_t pc) {
     for (uint16_t i = start_addr; i < 65536; i++) {
         sprintf(hex, "%02x", memory[i]);
         if (i == pc) {
-            wattron(mem_win->win, COLOR_PAIR(7));
+            wattron(mem_win->win, COLOR_PAIR(CTK_COLOR_SELECTED));
             mvwaddstr(mem_win->win, y, x, hex);
-            wattroff(mem_win->win, COLOR_PAIR(7));
+            wattroff(mem_win->win, COLOR_PAIR(CTK_COLOR_SELECTED));
         }
         else {
-            wattron(mem_win->win, COLOR_PAIR(6));
+            wattron(mem_win->win, COLOR_PAIR(CTK_COLOR_WINDOW));
             mvwaddstr(mem_win->win, y, x, hex);
-            wattroff(mem_win->win, COLOR_PAIR(6));
+            wattroff(mem_win->win, COLOR_PAIR(CTK_COLOR_WINDOW));
         }
         x += 3;
         b_count++;
@@ -59,9 +60,9 @@ void mem_win_draw(mem_win_t* mem_win, uint8_t* memory, uint16_t pc) {
 }
 
 void mem_win_select_window(mem_win_t* mem_win) {
-    wbkgd(mem_win->win, COLOR_PAIR(4));
+    wbkgd(mem_win->win, COLOR_PAIR(CTK_COLOR_HIGHLIGHT));
 }
 
 void mem_win_unselect_window(mem_win_t* mem_win) {
-    wbkgd(mem_win->win, COLOR_PAIR(3));
+    wbkgd(mem_win->win, COLOR_PAIR(CTK_COLOR_WINDOW));
 }

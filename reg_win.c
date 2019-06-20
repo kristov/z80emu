@@ -1,5 +1,6 @@
 #include <ncurses.h>
 #include "reg_win.h"
+#include "ctk.h"
 
 void reg_win_init(reg_win_t* reg_win, uint8_t width, uint8_t height, uint8_t x, uint8_t y) {
     if (reg_win->win != NULL) {
@@ -7,7 +8,7 @@ void reg_win_init(reg_win_t* reg_win, uint8_t width, uint8_t height, uint8_t x, 
     }
     reg_win->win = newwin(height, width, y, x);
     box(reg_win->win, 0, 0);
-    wbkgd(reg_win->win, COLOR_PAIR(3));
+    wbkgd(reg_win->win, COLOR_PAIR(CTK_COLOR_WINDOW));
 }
 
 void reg_win_destroy(reg_win_t* reg_win) {
@@ -37,11 +38,11 @@ void draw_reg_8(reg_win_t* reg_win, uint8_t x, uint8_t y, uint8_t value) {
         }
     }
 
-    wattron(reg_win->win, COLOR_PAIR(6));
+    wattron(reg_win->win, COLOR_PAIR(CTK_COLOR_HIGHLIGHT));
     mvwaddstr(reg_win->win, y, x, dec); x += 4;
     mvwaddstr(reg_win->win, y, x, hex); x += 3;
     mvwaddstr(reg_win->win, y, x, bin);
-    wattroff(reg_win->win, COLOR_PAIR(6));
+    wattroff(reg_win->win, COLOR_PAIR(CTK_COLOR_HIGHLIGHT));
 }
 
 // Draw a single 16 bit register
@@ -67,11 +68,11 @@ void draw_reg_16(reg_win_t* reg_win, uint8_t x, uint8_t y, uint16_t value) {
         }
     }
 
-    wattron(reg_win->win, COLOR_PAIR(6));
+    wattron(reg_win->win, COLOR_PAIR(CTK_COLOR_HIGHLIGHT));
     mvwaddstr(reg_win->win, y, x, dec); x += 8;
     mvwaddstr(reg_win->win, y, x, hex); x += 7;
     mvwaddstr(reg_win->win, y, x, bin);
-    wattroff(reg_win->win, COLOR_PAIR(6));
+    wattroff(reg_win->win, COLOR_PAIR(CTK_COLOR_HIGHLIGHT));
 }
 
 // Draw a single 16 bit register as two separate 8 bit registers
@@ -92,7 +93,7 @@ void reg_win_draw(reg_win_t* reg_win) {
 
     x = 1;
     y = 1;
-    wattron(reg_win->win, COLOR_PAIR(2));
+    wattron(reg_win->win, COLOR_PAIR(CTK_COLOR_OK));
     mvwaddstr(reg_win->win, y, x, "PC            [program counter]"); y++;
     mvwaddstr(reg_win->win, y, x, "00000 - 0000 - 0000000000000000"); y++;
     mvwaddstr(reg_win->win, y, x, "───────────────┬───────────────"); y++;
@@ -122,7 +123,7 @@ void reg_win_draw(reg_win_t* reg_win) {
     mvwaddstr(reg_win->win, y, x, "───────────────────────────────"); y++;
     mvwaddstr(reg_win->win, y, x, "IY            IYH      IYL     "); y++;
     mvwaddstr(reg_win->win, y, x, "00000 - 0000 - 0000000000000000"); y++;
-    wattroff(reg_win->win, COLOR_PAIR(2));
+    wattroff(reg_win->win, COLOR_PAIR(CTK_COLOR_OK));
 
     draw_reg_16(reg_win, 1, 2, reg_win->PC);
     draw_reg_16_as_two_8(reg_win, 1, 5, reg_win->AF);
@@ -141,7 +142,7 @@ void reg_win_draw_new(reg_win_t* reg_win) {
 
     x = 1;
     y = 1;
-    wattron(reg_win->win, COLOR_PAIR(2));
+    wattron(reg_win->win, COLOR_PAIR(CTK_COLOR_OK));
     mvwaddstr(reg_win->win, y, x, "PC            [program counter]"); y++;
     mvwaddstr(reg_win->win, y, x, "00000 - 0000 - 0000000000000000"); y++;
     mvwaddstr(reg_win->win, y, x, "                               "); y++;
@@ -171,7 +172,7 @@ void reg_win_draw_new(reg_win_t* reg_win) {
     mvwaddstr(reg_win->win, y, x, "                               "); y++;
     mvwaddstr(reg_win->win, y, x, "IY            IYH      IYL     "); y++;
     mvwaddstr(reg_win->win, y, x, "00000 - 0000 - 0000000000000000"); y++;
-    wattroff(reg_win->win, COLOR_PAIR(2));
+    wattroff(reg_win->win, COLOR_PAIR(CTK_COLOR_OK));
 
     draw_reg_16(reg_win, 1, 2, reg_win->PC);
     draw_reg_16_as_two_8(reg_win, 1, 5, reg_win->AF);
@@ -183,9 +184,9 @@ void reg_win_draw_new(reg_win_t* reg_win) {
 }
 
 void reg_win_select_window(reg_win_t* reg_win) {
-    wbkgd(reg_win->win, COLOR_PAIR(4));
+    wbkgd(reg_win->win, COLOR_PAIR(CTK_COLOR_HIGHLIGHT));
 }
 
 void reg_win_unselect_window(reg_win_t* reg_win) {
-    wbkgd(reg_win->win, COLOR_PAIR(3));
+    wbkgd(reg_win->win, COLOR_PAIR(CTK_COLOR_WINDOW));
 }

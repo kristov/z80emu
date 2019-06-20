@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "asm_win.h"
+#include "ctk.h"
 
 void asm_win_destroy(asm_win_t* asm_win) {
     delwin(asm_win->win);
@@ -20,7 +21,7 @@ void asm_win_init(asm_win_t* asm_win, uint8_t width, uint8_t height, uint8_t x, 
     asm_win->history = malloc(sizeof(char) * 20 * height);
     asm_win->win = newwin(height, width, y, x);
     box(asm_win->win, 0, 0);
-    wbkgd(asm_win->win, COLOR_PAIR(3));
+    wbkgd(asm_win->win, COLOR_PAIR(CTK_COLOR_WINDOW));
 }
 
 void asm_win_draw(asm_win_t* asm_win, char* asm_before, char* asm_after) {
@@ -49,9 +50,9 @@ void asm_win_draw(asm_win_t* asm_win, char* asm_before, char* asm_after) {
 }
 
 void asm_win_select_window(asm_win_t* asm_win) {
-    wbkgd(asm_win->win, COLOR_PAIR(4));
+    wbkgd(asm_win->win, COLOR_PAIR(CTK_COLOR_HIGHLIGHT));
 }
 
 void asm_win_unselect_window(asm_win_t* asm_win) {
-    wbkgd(asm_win->win, COLOR_PAIR(3));
+    wbkgd(asm_win->win, COLOR_PAIR(CTK_COLOR_WINDOW));
 }

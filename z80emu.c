@@ -12,6 +12,7 @@
 #include "reg_win.h"
 #include "mem_win.h"
 #include "asm_win.h"
+#include "ctk.h"
 
 // Which sub-window has focus
 enum win_mode {
@@ -30,6 +31,7 @@ typedef struct z80emu {
     uint16_t pc_before;
     uint16_t pc_after;
     enum win_mode win_mode;
+    ctk_ctx_t ctx;
     mem_win_t mem_win;
     reg_win_t reg_win;
     asm_win_t asm_win;
@@ -81,9 +83,9 @@ Z80EX_BYTE mem_read_dasm(Z80EX_WORD addr, void *user_data) {
 
 // Print a debug message in the message window
 void debug_message(z80emu_t* z80emu, char* message) {
-    wattron(z80emu->msg_win, COLOR_PAIR(3));
+    wattron(z80emu->msg_win, COLOR_PAIR(CTK_COLOR_WARNING));
     mvwaddstr(z80emu->msg_win, 1, 1, message);
-    wattroff(z80emu->msg_win, COLOR_PAIR(3));
+    wattroff(z80emu->msg_win, COLOR_PAIR(CTK_COLOR_WARNING));
 }
 
 // Destroy a z80emu instance
@@ -119,7 +121,7 @@ void init_windows(z80emu_t* z80emu) {
 
     z80emu->msg_win = newwin(z80emu->msg_height, z80emu->msg_width, y - z80emu->msg_height, reg_width);
     box(z80emu->msg_win, 0, 0);
-    wbkgd(z80emu->msg_win, COLOR_PAIR(3));
+    wbkgd(z80emu->msg_win, COLOR_PAIR(CTK_COLOR_WARNING));
 
     mem_win_init(&z80emu->mem_win, x - reg_width - mid_width, y - z80emu->msg_height, reg_width + mid_width, 0);
     asm_win_init(&z80emu->asm_win, mid_width, 20, mid_width, 0);
@@ -127,24 +129,8 @@ void init_windows(z80emu_t* z80emu) {
 
 // Curses init
 void init_view(z80emu_t* z80emu) {
-    setlocale(LC_ALL, "");
-    initscr();
-    if (has_colors()) {
-        start_color();
-        init_pair(1, COLOR_RED, COLOR_BLACK);
-        init_pair(2, COLOR_GREEN, COLOR_BLACK);
-        init_pair(3, COLOR_YELLOW,COLOR_BLACK);
-        init_pair(4, COLOR_BLUE, COLOR_BLACK);
-        init_pair(5, COLOR_CYAN, COLOR_BLACK);
-        init_pair(6, COLOR_MAGENTA, COLOR_BLACK);
-        init_pair(7, COLOR_BLACK, COLOR_MAGENTA);
-        init_pair(8, COLOR_WHITE, COLOR_BLACK);
-    }
-    keypad(stdscr, TRUE);
-    noecho();
-    cbreak();
-    timeout(1000);
-    curs_set(FALSE);
+    ctk_init_curses();
+    ctk_init_ctx(&z80emu->ctx, stdscr);
     init_windows(z80emu);
 }
 
@@ -299,7 +285,6 @@ void main_program(z80emu_t* z80emu) {
     z80emu->cpu = z80ex_create(mem_read, z80emu, mem_write, z80emu, port_read, z80emu, port_write, z80emu, int_read, z80emu);
 
     init_view(z80emu);
-    install_signal_handlers();
     refresh_view(z80emu);
 
     uint8_t pause = 1;

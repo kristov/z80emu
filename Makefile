@@ -2,12 +2,12 @@ CC := gcc
 CFLAGS := -Wall -Werror -ggdb
 
 LDFLAGS=-lncursesw
-INCLUDE=-Iexternal/z80ex/include/
+INCLUDE=-Iexternal/z80ex/include/ -Iexternal/ctk/
 
 OBJECTS =
 OBJECTS += external/z80ex/z80ex.o
 OBJECTS += external/z80ex/z80ex_dasm.o
-#OBJECTS += external/ctk/ctk.o
+OBJECTS += external/ctk/ctk.o
 OBJECTS += reg_win.o
 OBJECTS += mem_win.o
 OBJECTS += asm_win.o
@@ -22,15 +22,15 @@ external/z80ex/z80ex.o:
 #	cd external/ctk/ && make
 
 %.o: %.c %.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(INCLUDE) -c -o $@ $<
 
 clone-emulator:
 	mkdir -p external/
 	cd external/ && git clone https://github.com/lipro/z80ex.git
 
-#clone-ctk:
-#	mkdir -p external/
-#	cd external/ && git clone /home/ceade/src/personal/github/ctk/
+clone-ctk:
+	mkdir -p external/
+	cd external/ && git clone git@github.com:kristov/ctk.git
 
 clean:
 	rm -f z80emu $(OBJECTS)
