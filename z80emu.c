@@ -7,12 +7,12 @@
 #include <getopt.h>
 #include <signal.h>
 #include <locale.h>
-#include "z80ex.h"
-#include "z80ex_dasm.h"
+#include <z80ex.h>
+#include <z80ex_dasm.h>
+#include <ctk.h>
 #include "reg_win.h"
 #include "mem_win.h"
 #include "asm_win.h"
-#include "ctk.h"
 
 // Which sub-window has focus
 enum win_mode {
@@ -32,7 +32,6 @@ typedef struct z80emu {
     uint16_t pc_after;
     enum win_mode win_mode;
     ctk_ctx_t ctx;
-    mem_win_t mem_win;
     reg_win_t reg_win;
     asm_win_t asm_win;
     WINDOW* msg_win;
@@ -94,7 +93,7 @@ void cleanup_context(z80emu_t* z80emu) {
         free(z80emu->memory);
     }
     reg_win_destroy(&z80emu->reg_win);
-    mem_win_destroy(&z80emu->mem_win);
+    mem_win_destroy();
     delwin(z80emu->msg_win);
     asm_win_destroy(&z80emu->asm_win);
     z80ex_destroy(z80emu->cpu);
@@ -123,7 +122,7 @@ void init_windows(z80emu_t* z80emu) {
     box(z80emu->msg_win, 0, 0);
     wbkgd(z80emu->msg_win, COLOR_PAIR(CTK_COLOR_WARNING));
 
-    mem_win_init(&z80emu->mem_win, x - reg_width - mid_width, y - z80emu->msg_height, reg_width + mid_width, 0);
+    mem_win_init(&z80emu->ctx, x - reg_width - mid_width, y - z80emu->msg_height, reg_width + mid_width, 0);
     asm_win_init(&z80emu->asm_win, mid_width, 20, mid_width, 0);
 }
 
@@ -156,17 +155,17 @@ void selected_window_color(z80emu_t* z80emu) {
         case MODE_REG:
             reg_win_select_window(&z80emu->reg_win);
             asm_win_unselect_window(&z80emu->asm_win);
-            mem_win_unselect_window(&z80emu->mem_win);
+            mem_win_unselect_window();
             break;
         case MODE_ASM:
             reg_win_unselect_window(&z80emu->reg_win);
             asm_win_select_window(&z80emu->asm_win);
-            mem_win_unselect_window(&z80emu->mem_win);
+            mem_win_unselect_window();
             break;
         case MODE_MEM:
             reg_win_unselect_window(&z80emu->reg_win);
             asm_win_unselect_window(&z80emu->asm_win);
-            mem_win_select_window(&z80emu->mem_win);
+            mem_win_select_window();
             break;
         default:
             break;
@@ -192,12 +191,12 @@ void refresh_view(z80emu_t* z80emu) {
     selected_window_color(z80emu);
     populate_registers(z80emu);
     reg_win_draw(&z80emu->reg_win);
-    mem_win_draw(&z80emu->mem_win, z80emu->memory, (uint16_t)z80ex_get_reg(z80emu->cpu, regPC));
+    mem_win_draw(z80emu->memory, (uint16_t)z80ex_get_reg(z80emu->cpu, regPC));
     draw_asm(z80emu);
     refresh();
     wrefresh(z80emu->reg_win.win);
     wrefresh(z80emu->msg_win);
-    wrefresh(z80emu->mem_win.win);
+    //wrefresh(z80emu->mem_win.win);
     wrefresh(z80emu->asm_win.win);
 }
 
