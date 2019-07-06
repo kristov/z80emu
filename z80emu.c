@@ -128,6 +128,43 @@ static uint8_t mem_event_handler(ctk_event_t* event, void* user_data) {
     return 1;
 }
 
+static void reset_all(z80emu_t* z80emu) {
+    z80emu->pc_before = 0;
+    z80emu->pc_after = 0;
+    z80ex_reset(z80emu->cpu);
+}
+
+static void execute_instruction(z80emu_t* z80emu) {
+    z80emu->pc_before = z80ex_get_reg(z80emu->cpu, regPC);
+    z80ex_step(z80emu->cpu);
+    z80emu->pc_after = z80ex_get_reg(z80emu->cpu, regPC);
+}
+
+static uint8_t main_event_handler(ctk_event_t* event, void* user_data) {
+    if (event->type != CTK_EVENT_KEY) {
+        return 1;
+    }
+    z80emu_t* z80emu = (z80emu_t*)user_data;
+    switch (event->key) {
+        case 's':
+            execute_instruction(z80emu);
+            event->ctx->redraw = 1;
+            break;
+        case 'R':
+            reset_all(z80emu);
+            event->ctx->redraw = 1;
+            break;
+        case 'q':
+            cleanup_context(z80emu);
+            endwin();
+            exit(0);
+            break;
+        default:
+            break;
+    }
+    return 1;
+}
+
 static uint8_t reg_event_handler(ctk_event_t* event, void* user_data) {
     if (event->type != CTK_EVENT_DRAW) {
         return 1;
@@ -155,13 +192,11 @@ void init_windows(z80emu_t* z80emu) {
     ctk_init_area(&WIDGETS[AREA_REG], 33, 10, 0, 1);
     ctk_init_vbox(&WIDGETS[RIGHT_VBOX], &WIDGETS[RIGHT_HBOX], 2);
     ctk_init_hbox(&WIDGETS[MAIN_HBOX], &WIDGETS[AREA_REG], 2);
-    WIDGETS[AREA_ASM].event_callback = asm_event_handler;
-    WIDGETS[AREA_ASM].user_data = z80emu;
-    WIDGETS[AREA_MEM].event_callback = mem_event_handler;
-    WIDGETS[AREA_MEM].user_data = z80emu;
-    WIDGETS[AREA_REG].event_callback = reg_event_handler;
-    WIDGETS[AREA_REG].user_data = z80emu;
+    ctk_widget_event_handler(&WIDGETS[AREA_ASM], asm_event_handler, z80emu);
+    ctk_widget_event_handler(&WIDGETS[AREA_MEM], mem_event_handler, z80emu);
+    ctk_widget_event_handler(&WIDGETS[AREA_REG], reg_event_handler, z80emu);
     ctk_init(&z80emu->ctx, &WIDGETS[MAIN_HBOX], 1);
+    ctk_widget_event_handler(&z80emu->ctx.mainwin, main_event_handler, z80emu);
 }
 
 // Curses init
@@ -187,51 +222,6 @@ void draw_asm(z80emu_t* z80emu) {
     asm_win_draw(&z80emu->asm_win, asm_before, asm_after);
 }
 
-// Color the border of the selected window
-void selected_window_color(z80emu_t* z80emu) {
-    switch (z80emu->win_mode) {
-        case MODE_REG:
-            asm_win_unselect_window(&z80emu->asm_win);
-            mem_win_unselect_window();
-            break;
-        case MODE_ASM:
-            asm_win_select_window(&z80emu->asm_win);
-            mem_win_unselect_window();
-            break;
-        case MODE_MEM:
-            asm_win_unselect_window(&z80emu->asm_win);
-            mem_win_select_window();
-            break;
-        default:
-            break;
-    }
-}
-
-// Handle movement key presses in the memory view
-void key_move_handle_mem(z80emu_t* z80emu, int c) {
-    switch (c) {
-        case KEY_DOWN:
-            break;
-        default:
-            break;
-    }
-}
-
-// Handle all movement key presses
-void key_move_handle(z80emu_t* z80emu, int c) {
-    if (z80emu->win_mode == MODE_MEM) {
-        key_move_handle_mem(z80emu, c);
-    }
-}
-
-// Execute an instruction
-void execute_instruction(z80emu_t* z80emu) {
-    z80emu->pc_before = z80ex_get_reg(z80emu->cpu, regPC);
-    z80ex_step(z80emu->cpu);
-    z80emu->pc_after = z80ex_get_reg(z80emu->cpu, regPC);
-}
-
-// Window resize events
 void handle_winch(int sig){
     signal(SIGWINCH, SIG_IGN);
     endwin();
@@ -239,20 +229,17 @@ void handle_winch(int sig){
     signal(SIGWINCH, handle_winch);
 }
 
-// Ctrl-C events
 static void handle_int(int sig) {
     cleanup_context(&Z80EMU);
     endwin();
     exit(0);
 }
 
-// Install signal handles
 void install_signal_handlers() {
     signal(SIGINT, handle_int);
     signal(SIGWINCH, handle_winch);
 }
 
-// Load a ROM file from disk into 64k memory
 void load_binary_rom(z80emu_t* z80emu, char* rom_file) {
     unsigned long len;
 
@@ -279,75 +266,11 @@ void print_help() {
     printf("Usage: z80emu [-r<binary rom file>]\n");
 }
 
-void reset_all(z80emu_t* z80emu) {
-    z80emu->pc_before = 0;
-    z80emu->pc_after = 0;
-    z80ex_reset(z80emu->cpu);
-}
-
 // The main entry point after the instance is set up
 void main_program(z80emu_t* z80emu) {
     z80emu->cpu = z80ex_create(mem_read, z80emu, mem_write, z80emu, port_read, z80emu, port_write, z80emu, int_read, z80emu);
     init_view(z80emu);
     ctk_main_loop(&z80emu->ctx);
-/*
-    uint8_t pause = 1;
-    int c;
-    while (1) {
-        c = getch();
-        if (ERR != c) {
-            pause = 1;
-            switch (c) {
-                case 's':
-                    pause = 1;
-                    execute_instruction(z80emu);
-                    refresh_view(z80emu);
-                    break;
-                case 'R':
-                    reset_all(z80emu);
-                    refresh_view(z80emu);
-                    break;
-                case ' ':
-                    pause = !pause;
-                    break;
-                case 'q':
-                    cleanup_context(z80emu);
-                    endwin();
-                    exit(0);
-                    break;
-                case 0x09: // TAB
-                    z80emu->win_mode += 1;
-                    if (z80emu->win_mode > MODE_MAX) {
-                        z80emu->win_mode = MODE_ZERO;
-                    }
-                    refresh_view(z80emu);
-                    break;
-                case KEY_DOWN:
-                    key_move_handle(z80emu, c);
-                    refresh_view(z80emu);
-                    break;
-                case KEY_UP:
-                    key_move_handle(z80emu, c);
-                    refresh_view(z80emu);
-                    break;
-                case KEY_RIGHT:
-                    key_move_handle(z80emu, c);
-                    refresh_view(z80emu);
-                    break;
-                case KEY_LEFT:
-                    key_move_handle(z80emu, c);
-                    refresh_view(z80emu);
-                    break;
-                default:
-                    break;
-            }
-        }
-        if (!pause) {
-            execute_instruction(z80emu);
-            refresh_view(z80emu);
-        }
-    }
-*/
 }
 
 // initialize an instance of a z80 emulator
