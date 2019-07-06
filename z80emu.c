@@ -23,6 +23,22 @@ enum win_mode {
 #define MODE_ZERO 0x00
 #define MODE_MAX 0x02
 
+#define AREA_ASM 0
+#define AREA_MEM 1
+#define RIGHT_HBOX 2
+#define AREA_MSG 3
+#define AREA_REG 4
+#define RIGHT_VBOX 5
+#define MAIN_HBOX 6
+ctk_widget_t WIDGETS[7];
+// +-------+-----+-------------------+
+// | REG   | ASM | MEM               |
+// |       |     |                   |
+// |       |     |                   |
+// |       +-----+-------------------+
+// |       | MSG                     |
+// +-------+-------------------------+
+
 // An instance of an emulator UI
 typedef struct z80emu {
     FILE* rom_fh;
@@ -92,38 +108,60 @@ void cleanup_context(z80emu_t* z80emu) {
     if (z80emu->memory != NULL) {
         free(z80emu->memory);
     }
-    reg_win_destroy(&z80emu->reg_win);
-    mem_win_destroy();
-    delwin(z80emu->msg_win);
-    asm_win_destroy(&z80emu->asm_win);
     z80ex_destroy(z80emu->cpu);
 }
 
-// Create all UI sub-windows
-void init_windows(z80emu_t* z80emu) {
-    int x, y;
-    uint8_t reg_width;
-    uint8_t mid_width;
-
-    getmaxyx(stdscr, y, x);
-    if (z80emu->msg_win != NULL) {
-        delwin(z80emu->msg_win);
+static uint8_t asm_event_handler(ctk_event_t* event, void* user_data) {
+    if (event->type != CTK_EVENT_DRAW) {
+        return 1;
     }
+    //z80emu_t* z80emu = (z80emu_t*)user_data;
+    return 1;
+}
 
-    reg_width = 33;
-    mid_width = 33;
+static uint8_t mem_event_handler(ctk_event_t* event, void* user_data) {
+    if (event->type != CTK_EVENT_DRAW) {
+        return 1;
+    }
+    z80emu_t* z80emu = (z80emu_t*)user_data;
+    mem_win_draw(event->widget, z80emu->memory, z80emu->pc_before);
+    return 1;
+}
 
-    z80emu->msg_width = x - reg_width;
-    z80emu->msg_height = 3;
+static uint8_t reg_event_handler(ctk_event_t* event, void* user_data) {
+    if (event->type != CTK_EVENT_DRAW) {
+        return 1;
+    }
+    z80emu_t* z80emu = (z80emu_t*)user_data;
+    z80emu->reg_win.PC = (uint16_t)z80ex_get_reg(z80emu->cpu, regPC);
+    z80emu->reg_win.AF = (uint16_t)z80ex_get_reg(z80emu->cpu, regAF);
+    z80emu->reg_win.BC = (uint16_t)z80ex_get_reg(z80emu->cpu, regBC);
+    z80emu->reg_win.DE = (uint16_t)z80ex_get_reg(z80emu->cpu, regDE);
+    z80emu->reg_win.HL = (uint16_t)z80ex_get_reg(z80emu->cpu, regHL);
+    z80emu->reg_win.I = (uint16_t)z80ex_get_reg(z80emu->cpu, regI);
+    z80emu->reg_win.R = (uint16_t)z80ex_get_reg(z80emu->cpu, regR);
+    z80emu->reg_win.SP = (uint16_t)z80ex_get_reg(z80emu->cpu, regSP);
+    z80emu->reg_win.IX = (uint16_t)z80ex_get_reg(z80emu->cpu, regIX);
+    z80emu->reg_win.IY = (uint16_t)z80ex_get_reg(z80emu->cpu, regIY);
+    reg_win_draw(event->widget, &z80emu->reg_win);
+    return 1;
+}
 
-    reg_win_init(&z80emu->reg_win, 33, y, 0, 0);
-
-    z80emu->msg_win = newwin(z80emu->msg_height, z80emu->msg_width, y - z80emu->msg_height, reg_width);
-    box(z80emu->msg_win, 0, 0);
-    wbkgd(z80emu->msg_win, COLOR_PAIR(CTK_COLOR_WARNING));
-
-    mem_win_init(&z80emu->ctx, x - reg_width - mid_width, y - z80emu->msg_height, reg_width + mid_width, 0);
-    asm_win_init(&z80emu->asm_win, mid_width, 20, mid_width, 0);
+void init_windows(z80emu_t* z80emu) {
+    ctk_init_area(&WIDGETS[AREA_ASM], 20, 10, 0, 1);
+    ctk_init_area(&WIDGETS[AREA_MEM], 10, 10, 1, 1);
+    ctk_init_hbox(&WIDGETS[RIGHT_HBOX], &WIDGETS[AREA_ASM], 2);
+    ctk_init_area(&WIDGETS[AREA_MSG], 30, 1, 1, 0);
+    ctk_init_area(&WIDGETS[AREA_REG], 33, 10, 0, 1);
+    ctk_init_vbox(&WIDGETS[RIGHT_VBOX], &WIDGETS[RIGHT_HBOX], 2);
+    ctk_init_hbox(&WIDGETS[MAIN_HBOX], &WIDGETS[AREA_REG], 2);
+    WIDGETS[AREA_ASM].event_callback = asm_event_handler;
+    WIDGETS[AREA_ASM].user_data = z80emu;
+    WIDGETS[AREA_MEM].event_callback = mem_event_handler;
+    WIDGETS[AREA_MEM].user_data = z80emu;
+    WIDGETS[AREA_REG].event_callback = reg_event_handler;
+    WIDGETS[AREA_REG].user_data = z80emu;
+    ctk_init(&z80emu->ctx, &WIDGETS[MAIN_HBOX], 1);
 }
 
 // Curses init
@@ -153,51 +191,20 @@ void draw_asm(z80emu_t* z80emu) {
 void selected_window_color(z80emu_t* z80emu) {
     switch (z80emu->win_mode) {
         case MODE_REG:
-            reg_win_select_window(&z80emu->reg_win);
             asm_win_unselect_window(&z80emu->asm_win);
             mem_win_unselect_window();
             break;
         case MODE_ASM:
-            reg_win_unselect_window(&z80emu->reg_win);
             asm_win_select_window(&z80emu->asm_win);
             mem_win_unselect_window();
             break;
         case MODE_MEM:
-            reg_win_unselect_window(&z80emu->reg_win);
             asm_win_unselect_window(&z80emu->asm_win);
             mem_win_select_window();
             break;
         default:
             break;
     }
-}
-
-// Draw the registers in the register window
-void populate_registers(z80emu_t* z80emu) {
-    z80emu->reg_win.PC = (uint16_t)z80ex_get_reg(z80emu->cpu, regPC);
-    z80emu->reg_win.AF = (uint16_t)z80ex_get_reg(z80emu->cpu, regAF);
-    z80emu->reg_win.BC = (uint16_t)z80ex_get_reg(z80emu->cpu, regBC);
-    z80emu->reg_win.DE = (uint16_t)z80ex_get_reg(z80emu->cpu, regDE);
-    z80emu->reg_win.HL = (uint16_t)z80ex_get_reg(z80emu->cpu, regHL);
-    z80emu->reg_win.I = (uint16_t)z80ex_get_reg(z80emu->cpu, regI);
-    z80emu->reg_win.R = (uint16_t)z80ex_get_reg(z80emu->cpu, regR);
-    z80emu->reg_win.SP = (uint16_t)z80ex_get_reg(z80emu->cpu, regSP);
-    z80emu->reg_win.IX = (uint16_t)z80ex_get_reg(z80emu->cpu, regIX);
-    z80emu->reg_win.IY = (uint16_t)z80ex_get_reg(z80emu->cpu, regIY);
-}
-
-// Redraw everything
-void refresh_view(z80emu_t* z80emu) {
-    selected_window_color(z80emu);
-    populate_registers(z80emu);
-    reg_win_draw(&z80emu->reg_win);
-    mem_win_draw(z80emu->memory, (uint16_t)z80ex_get_reg(z80emu->cpu, regPC));
-    draw_asm(z80emu);
-    refresh();
-    wrefresh(z80emu->reg_win.win);
-    wrefresh(z80emu->msg_win);
-    //wrefresh(z80emu->mem_win.win);
-    wrefresh(z80emu->asm_win.win);
 }
 
 // Handle movement key presses in the memory view
@@ -229,7 +236,6 @@ void handle_winch(int sig){
     signal(SIGWINCH, SIG_IGN);
     endwin();
     resize_view(&Z80EMU);
-    refresh_view(&Z80EMU);
     signal(SIGWINCH, handle_winch);
 }
 
@@ -282,10 +288,9 @@ void reset_all(z80emu_t* z80emu) {
 // The main entry point after the instance is set up
 void main_program(z80emu_t* z80emu) {
     z80emu->cpu = z80ex_create(mem_read, z80emu, mem_write, z80emu, port_read, z80emu, port_write, z80emu, int_read, z80emu);
-
     init_view(z80emu);
-    refresh_view(z80emu);
-
+    ctk_main_loop(&z80emu->ctx);
+/*
     uint8_t pause = 1;
     int c;
     while (1) {
@@ -342,6 +347,7 @@ void main_program(z80emu_t* z80emu) {
             refresh_view(z80emu);
         }
     }
+*/
 }
 
 // initialize an instance of a z80 emulator

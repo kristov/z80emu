@@ -2,25 +2,8 @@
 #include "mem_win.h"
 #include <ctk.h>
 
-#define MEM_HBOX 0
-#define MEM_VOID 1
-#define MEM_WINDOW 2
-
-ctk_widget_t widgets[3];
-
-void mem_win_destroy() {
-}
-
-void mem_win_init(ctk_ctx_t* ctx, uint8_t width, uint8_t height, uint8_t x, uint8_t y) {
-    ctk_void_init(&widgets[MEM_VOID], x, y);
-    ctk_window_init(&widgets[MEM_WINDOW], NULL, 0);
-    ctk_hbox_init(&widgets[MEM_HBOX], &widgets[MEM_VOID], 2);
-    ctk_init_widgets(ctx, &widgets[MEM_HBOX], 1);
-}
-
-void mem_win_draw(uint8_t* memory, uint16_t pc) {
+void mem_win_draw(ctk_widget_t* window, uint8_t* memory, uint16_t pc) {
     char hex[3];
-    ctk_widget_t* window = &widgets[MEM_WINDOW];
 
     uint8_t viz_width = window->width;
     uint8_t viz_height = window->height;
