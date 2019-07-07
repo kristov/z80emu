@@ -159,6 +159,7 @@ static uint8_t msg_event_handler(ctk_event_t* event, void* user_data) {
         return 1;
     }
     ctk_addstr(event->widget, 0, 0, 1, &MSG[0]);
+    memset(&MSG, 0, 256);
     return 1;
 }
 

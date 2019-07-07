@@ -79,10 +79,13 @@ void reg_win_draw(ctk_widget_t* window, reg_win_t* reg_win) {
     draw_reg_16_as_two_8(window, 0, y, reg_win->AF); y++;
     ctk_addstr(window, x, y, CTK_COLOR_OK, "B     [counter] C        [port]"); y++;
     draw_reg_16_as_two_8(window, 0, y, reg_win->BC); y++;
+    draw_reg_16(window, 0, y, reg_win->BC); y++;
     ctk_addstr(window, x, y, CTK_COLOR_OK, "D               E              "); y++;
     draw_reg_16_as_two_8(window, 0, y, reg_win->DE); y++;
+    draw_reg_16(window, 0, y, reg_win->DE); y++;
     ctk_addstr(window, x, y, CTK_COLOR_OK, "H               L              "); y++;
     draw_reg_16_as_two_8(window, 0, y, reg_win->HL); y++;
+    draw_reg_16(window, 0, y, reg_win->HL); y++;
     ctk_addstr(window, x, y, CTK_COLOR_OK, "I                   [interrupt]"); y++;
     draw_reg_16(window, 0, y, reg_win->I); y++;
     ctk_addstr(window, x, y, CTK_COLOR_OK, "R                     [refresh]"); y++;
