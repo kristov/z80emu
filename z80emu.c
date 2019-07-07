@@ -24,15 +24,16 @@ enum win_mode {
 #define MODE_MAX 0x02
 
 #define AREA_ASM 0
-#define AREA_MEM 1
-#define RIGHT_HBOX 2
-#define HBOX_MSG_HRULE 3
-#define AREA_MSG 4
-#define AREA_REG 5
-#define REG_VBOX_VRULE 6
-#define RIGHT_VBOX 7
-#define MAIN_HBOX 8
-ctk_widget_t WIDGETS[9];
+#define ASM_MEM_VRULE 1
+#define AREA_MEM 2
+#define RIGHT_HBOX 3
+#define HBOX_MSG_HRULE 4
+#define AREA_MSG 5
+#define AREA_REG 6
+#define REG_VBOX_VRULE 7
+#define RIGHT_VBOX 8
+#define MAIN_HBOX 9
+ctk_widget_t WIDGETS[10];
 // +-------+-----+-------------------+
 // | REG   | ASM | MEM               |
 // |       |     |                   |
@@ -71,18 +72,18 @@ Z80EX_BYTE mem_read(Z80EX_CONTEXT* cpu, Z80EX_WORD addr, int m1_state, void* use
 
 // Z80EX-Callback for a CPU memory write
 void mem_write(Z80EX_CONTEXT *cpu, Z80EX_WORD addr, Z80EX_BYTE value, void *z80emu) {
-    //printf("memory write: address[%016x] data[%08x]\n", addr, value);
+    ctk_printf(&WIDGETS[AREA_MSG], 0, 0, 1, "memory write: address[%016x] data[%08x]", addr, value);
 }
 
 // Z80EX-Callback for a CPU port read
 Z80EX_BYTE port_read(Z80EX_CONTEXT *cpu, Z80EX_WORD port, void *z80emu) {
-    //printf("port read: address[%016x]\n", port);
+    ctk_printf(&WIDGETS[AREA_MSG], 0, 0, 1, "port read: address[%016x]", port);
     return 0;
 }
 
 // Z80EX-Callback for a CPU port write
 void port_write(Z80EX_CONTEXT *cpu, Z80EX_WORD port, Z80EX_BYTE value, void *z80emu) {
-    //printf("port write: address[%016x] data[%08x]\n", port, value);
+    ctk_printf(&WIDGETS[AREA_MSG], 0, 0, 1, "port write: address[%016x] data[%08x]", port, value);
 }
 
 // Z80EX-Callback for an interrupt read
@@ -194,8 +195,9 @@ static uint8_t main_event_handler(ctk_event_t* event, void* user_data) {
 
 void init_windows(z80emu_t* z80emu) {
     ctk_init_area(&WIDGETS[AREA_ASM], 20, 10, 0, 1);
+    ctk_init_vrule(&WIDGETS[ASM_MEM_VRULE]);
     ctk_init_area(&WIDGETS[AREA_MEM], 10, 10, 1, 1);
-    ctk_init_hbox(&WIDGETS[RIGHT_HBOX], &WIDGETS[AREA_ASM], 2);
+    ctk_init_hbox(&WIDGETS[RIGHT_HBOX], &WIDGETS[AREA_ASM], 3);
     ctk_init_hrule(&WIDGETS[HBOX_MSG_HRULE]);
     ctk_init_area(&WIDGETS[AREA_MSG], 30, 1, 1, 0);
     ctk_init_area(&WIDGETS[AREA_REG], 31, 10, 0, 1);

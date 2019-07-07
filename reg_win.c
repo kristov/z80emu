@@ -89,9 +89,9 @@ void reg_win_draw(ctk_widget_t* window, reg_win_t* reg_win) {
     draw_reg_16(window, 0, y, reg_win->R); y++;
     ctk_addstr(window, x, y, CTK_COLOR_OK, "SP              [stack pointer]"); y++;
     draw_reg_16(window, 0, y, reg_win->SP); y++;
-    ctk_addstr(window, x, y, CTK_COLOR_OK, "IX            IXH      IXL     "); y++;
+    ctk_addstr(window, x, y, CTK_COLOR_OK, "IXH             IXL            "); y++;
     draw_reg_16_as_two_8(window, 0, y, reg_win->IX); y++;
-    ctk_addstr(window, x, y, CTK_COLOR_OK, "IY            IYH      IYL     "); y++;
+    ctk_addstr(window, x, y, CTK_COLOR_OK, "IYH             IYL            "); y++;
     draw_reg_16_as_two_8(window, 0, y, reg_win->IY); y++;
 }
 
