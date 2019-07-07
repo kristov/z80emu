@@ -26,11 +26,13 @@ enum win_mode {
 #define AREA_ASM 0
 #define AREA_MEM 1
 #define RIGHT_HBOX 2
-#define AREA_MSG 3
-#define AREA_REG 4
-#define RIGHT_VBOX 5
-#define MAIN_HBOX 6
-ctk_widget_t WIDGETS[7];
+#define HBOX_MSG_HRULE 3
+#define AREA_MSG 4
+#define AREA_REG 5
+#define REG_VBOX_VRULE 6
+#define RIGHT_VBOX 7
+#define MAIN_HBOX 8
+ctk_widget_t WIDGETS[9];
 // +-------+-----+-------------------+
 // | REG   | ASM | MEM               |
 // |       |     |                   |
@@ -194,10 +196,12 @@ void init_windows(z80emu_t* z80emu) {
     ctk_init_area(&WIDGETS[AREA_ASM], 20, 10, 0, 1);
     ctk_init_area(&WIDGETS[AREA_MEM], 10, 10, 1, 1);
     ctk_init_hbox(&WIDGETS[RIGHT_HBOX], &WIDGETS[AREA_ASM], 2);
+    ctk_init_hrule(&WIDGETS[HBOX_MSG_HRULE]);
     ctk_init_area(&WIDGETS[AREA_MSG], 30, 1, 1, 0);
-    ctk_init_area(&WIDGETS[AREA_REG], 33, 10, 0, 1);
-    ctk_init_vbox(&WIDGETS[RIGHT_VBOX], &WIDGETS[RIGHT_HBOX], 2);
-    ctk_init_hbox(&WIDGETS[MAIN_HBOX], &WIDGETS[AREA_REG], 2);
+    ctk_init_area(&WIDGETS[AREA_REG], 31, 10, 0, 1);
+    ctk_init_vrule(&WIDGETS[REG_VBOX_VRULE]);
+    ctk_init_vbox(&WIDGETS[RIGHT_VBOX], &WIDGETS[RIGHT_HBOX], 3);
+    ctk_init_hbox(&WIDGETS[MAIN_HBOX], &WIDGETS[AREA_REG], 3);
     ctk_widget_event_handler(&WIDGETS[AREA_ASM], asm_event_handler, z80emu);
     ctk_widget_event_handler(&WIDGETS[AREA_MEM], mem_event_handler, z80emu);
     ctk_widget_event_handler(&WIDGETS[AREA_REG], reg_event_handler, z80emu);

@@ -1,4 +1,3 @@
-#include <ncurses.h>
 #include "mem_win.h"
 #include <ctk.h>
 
@@ -40,12 +39,4 @@ void mem_win_draw(ctk_widget_t* window, uint8_t* memory, uint16_t pc) {
             break;
         }
     }
-}
-
-void mem_win_select_window() {
-    //wbkgd(mem_win->win, COLOR_PAIR(CTK_COLOR_HIGHLIGHT));
-}
-
-void mem_win_unselect_window() {
-    //wbkgd(mem_win->win, COLOR_PAIR(CTK_COLOR_WINDOW));
 }
