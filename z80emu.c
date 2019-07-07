@@ -96,36 +96,17 @@ Z80EX_BYTE mem_read_dasm(Z80EX_WORD addr, void *user_data) {
     return z80emu->memory[(uint16_t)addr];
 }
 
-// Print a debug message in the message window
 void debug_message(z80emu_t* z80emu, char* message) {
     wattron(z80emu->msg_win, COLOR_PAIR(CTK_COLOR_WARNING));
     mvwaddstr(z80emu->msg_win, 1, 1, message);
     wattroff(z80emu->msg_win, COLOR_PAIR(CTK_COLOR_WARNING));
 }
 
-// Destroy a z80emu instance
 void cleanup_context(z80emu_t* z80emu) {
     if (z80emu->memory != NULL) {
         free(z80emu->memory);
     }
     z80ex_destroy(z80emu->cpu);
-}
-
-static uint8_t asm_event_handler(ctk_event_t* event, void* user_data) {
-    if (event->type != CTK_EVENT_DRAW) {
-        return 1;
-    }
-    //z80emu_t* z80emu = (z80emu_t*)user_data;
-    return 1;
-}
-
-static uint8_t mem_event_handler(ctk_event_t* event, void* user_data) {
-    if (event->type != CTK_EVENT_DRAW) {
-        return 1;
-    }
-    z80emu_t* z80emu = (z80emu_t*)user_data;
-    mem_win_draw(event->widget, z80emu->memory, z80emu->pc_before);
-    return 1;
 }
 
 static void reset_all(z80emu_t* z80emu) {
@@ -138,6 +119,50 @@ static void execute_instruction(z80emu_t* z80emu) {
     z80emu->pc_before = z80ex_get_reg(z80emu->cpu, regPC);
     z80ex_step(z80emu->cpu);
     z80emu->pc_after = z80ex_get_reg(z80emu->cpu, regPC);
+}
+
+static uint8_t asm_event_handler(ctk_event_t* event, void* user_data) {
+    if (event->type != CTK_EVENT_DRAW) {
+        return 1;
+    }
+    z80emu_t* z80emu = (z80emu_t*)user_data;
+    char asm_before[255];
+    char asm_after[255];
+    int t, t2;
+    memset(asm_before, 0, 255);
+    memset(asm_after, 0, 255);
+    z80ex_dasm(asm_before, 255, 0, &t, &t2, mem_read_dasm, z80emu->pc_before, z80emu);
+    z80ex_dasm(asm_after, 255, 0, &t, &t2, mem_read_dasm, z80emu->pc_after, z80emu);
+    asm_win_draw(event->widget, &z80emu->asm_win, asm_before, asm_after);
+    return 1;
+}
+
+static uint8_t mem_event_handler(ctk_event_t* event, void* user_data) {
+    if (event->type != CTK_EVENT_DRAW) {
+        return 1;
+    }
+    z80emu_t* z80emu = (z80emu_t*)user_data;
+    mem_win_draw(event->widget, z80emu->memory, z80emu->pc_before);
+    return 1;
+}
+
+static uint8_t reg_event_handler(ctk_event_t* event, void* user_data) {
+    if (event->type != CTK_EVENT_DRAW) {
+        return 1;
+    }
+    z80emu_t* z80emu = (z80emu_t*)user_data;
+    z80emu->reg_win.PC = (uint16_t)z80ex_get_reg(z80emu->cpu, regPC);
+    z80emu->reg_win.AF = (uint16_t)z80ex_get_reg(z80emu->cpu, regAF);
+    z80emu->reg_win.BC = (uint16_t)z80ex_get_reg(z80emu->cpu, regBC);
+    z80emu->reg_win.DE = (uint16_t)z80ex_get_reg(z80emu->cpu, regDE);
+    z80emu->reg_win.HL = (uint16_t)z80ex_get_reg(z80emu->cpu, regHL);
+    z80emu->reg_win.I = (uint16_t)z80ex_get_reg(z80emu->cpu, regI);
+    z80emu->reg_win.R = (uint16_t)z80ex_get_reg(z80emu->cpu, regR);
+    z80emu->reg_win.SP = (uint16_t)z80ex_get_reg(z80emu->cpu, regSP);
+    z80emu->reg_win.IX = (uint16_t)z80ex_get_reg(z80emu->cpu, regIX);
+    z80emu->reg_win.IY = (uint16_t)z80ex_get_reg(z80emu->cpu, regIY);
+    reg_win_draw(event->widget, &z80emu->reg_win);
+    return 1;
 }
 
 static uint8_t main_event_handler(ctk_event_t* event, void* user_data) {
@@ -165,25 +190,6 @@ static uint8_t main_event_handler(ctk_event_t* event, void* user_data) {
     return 1;
 }
 
-static uint8_t reg_event_handler(ctk_event_t* event, void* user_data) {
-    if (event->type != CTK_EVENT_DRAW) {
-        return 1;
-    }
-    z80emu_t* z80emu = (z80emu_t*)user_data;
-    z80emu->reg_win.PC = (uint16_t)z80ex_get_reg(z80emu->cpu, regPC);
-    z80emu->reg_win.AF = (uint16_t)z80ex_get_reg(z80emu->cpu, regAF);
-    z80emu->reg_win.BC = (uint16_t)z80ex_get_reg(z80emu->cpu, regBC);
-    z80emu->reg_win.DE = (uint16_t)z80ex_get_reg(z80emu->cpu, regDE);
-    z80emu->reg_win.HL = (uint16_t)z80ex_get_reg(z80emu->cpu, regHL);
-    z80emu->reg_win.I = (uint16_t)z80ex_get_reg(z80emu->cpu, regI);
-    z80emu->reg_win.R = (uint16_t)z80ex_get_reg(z80emu->cpu, regR);
-    z80emu->reg_win.SP = (uint16_t)z80ex_get_reg(z80emu->cpu, regSP);
-    z80emu->reg_win.IX = (uint16_t)z80ex_get_reg(z80emu->cpu, regIX);
-    z80emu->reg_win.IY = (uint16_t)z80ex_get_reg(z80emu->cpu, regIY);
-    reg_win_draw(event->widget, &z80emu->reg_win);
-    return 1;
-}
-
 void init_windows(z80emu_t* z80emu) {
     ctk_init_area(&WIDGETS[AREA_ASM], 20, 10, 0, 1);
     ctk_init_area(&WIDGETS[AREA_MEM], 10, 10, 1, 1);
@@ -197,6 +203,7 @@ void init_windows(z80emu_t* z80emu) {
     ctk_widget_event_handler(&WIDGETS[AREA_REG], reg_event_handler, z80emu);
     ctk_init(&z80emu->ctx, &WIDGETS[MAIN_HBOX], 1);
     ctk_widget_event_handler(&z80emu->ctx.mainwin, main_event_handler, z80emu);
+    asm_win_init(&z80emu->asm_win, WIDGETS[AREA_ASM].height);
 }
 
 // Curses init
@@ -209,17 +216,6 @@ void init_view(z80emu_t* z80emu) {
 // Resize event
 void resize_view(z80emu_t* z80emu) {
     init_windows(z80emu);
-}
-
-void draw_asm(z80emu_t* z80emu) {
-    char asm_before[255];
-    char asm_after[255];
-    int t, t2;
-    memset(asm_before, 0, 255);
-    memset(asm_after, 0, 255);
-    z80ex_dasm(asm_before, 255, 0, &t, &t2, mem_read_dasm, z80emu->pc_before, z80emu);
-    z80ex_dasm(asm_after, 255, 0, &t, &t2, mem_read_dasm, z80emu->pc_after, z80emu);
-    asm_win_draw(&z80emu->asm_win, asm_before, asm_after);
 }
 
 void handle_winch(int sig){

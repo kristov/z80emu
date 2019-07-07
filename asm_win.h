@@ -1,24 +1,16 @@
 #ifndef ASM_WIN_H
 #define ASM_WIN_H
 
-#include <stdint.h>
+#include <ctk.h>
 
 typedef struct asm_win {
-    WINDOW* win;
-    uint8_t width;
     uint8_t height;
     char* history;
     uint8_t next_history;
 } asm_win_t;
 
-void asm_win_destroy(asm_win_t* asm_win);
+void asm_win_init(asm_win_t* asm_win, uint8_t height);
 
-void asm_win_init(asm_win_t* asm_win, uint8_t width, uint8_t height, uint8_t x, uint8_t y);
-
-void asm_win_draw(asm_win_t* asm_win, char* asm_before, char* asm_after);
-
-void asm_win_select_window(asm_win_t* asm_win);
-
-void asm_win_unselect_window(asm_win_t* asm_win);
+void asm_win_draw(ctk_widget_t* window, asm_win_t* asm_win, char* asm_before, char* asm_after);
 
 #endif

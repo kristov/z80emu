@@ -4,27 +4,16 @@
 #include "asm_win.h"
 #include "ctk.h"
 
-void asm_win_destroy(asm_win_t* asm_win) {
-    delwin(asm_win->win);
-}
-
-void asm_win_init(asm_win_t* asm_win, uint8_t width, uint8_t height, uint8_t x, uint8_t y) {
-    if (asm_win->win != NULL) {
-        delwin(asm_win->win);
-    }
+void asm_win_init(asm_win_t* asm_win, uint8_t height) {
     if (asm_win->history != NULL) {
         free(asm_win->history);
     }
-    asm_win->width = width - 2;
-    asm_win->height = height - 2;
     asm_win->next_history = 0;
+    asm_win->height = height;
     asm_win->history = malloc(sizeof(char) * 20 * height);
-    asm_win->win = newwin(height, width, y, x);
-    box(asm_win->win, 0, 0);
-    wbkgd(asm_win->win, COLOR_PAIR(CTK_COLOR_WINDOW));
 }
 
-void asm_win_draw(asm_win_t* asm_win, char* asm_before, char* asm_after) {
+void asm_win_draw(ctk_widget_t* window, asm_win_t* asm_win, char* asm_before, char* asm_after) {
     int len = strlen(asm_before);
     if (len > 20) {
         len = 20;
@@ -37,22 +26,14 @@ void asm_win_draw(asm_win_t* asm_win, char* asm_before, char* asm_after) {
     if (asm_win->next_history >= asm_win->height) {
         asm_win->next_history = 0;
     }
-    mvwprintw(asm_win->win, 1, 1, "%d  ", len);
+    ctk_printf(window, 0, 0, 1, "%d  ", len);
     uint16_t top = asm_win->next_history;
     for (uint16_t i = 0; i < asm_win->height; i++) {
-        mvwaddstr(asm_win->win, i + 1, 1, "                    ");
-        mvwprintw(asm_win->win, i + 1, 1, "%s", &asm_win->history[top * 20]);
+        ctk_addstr(window, 0, i, 1, "                    ");
+        ctk_printf(window, 0, i, 1, "%s", &asm_win->history[top * 20]);
         top++;
         if (top >= asm_win->height) {
             top = 0;
         }
     }
-}
-
-void asm_win_select_window(asm_win_t* asm_win) {
-    wbkgd(asm_win->win, COLOR_PAIR(CTK_COLOR_HIGHLIGHT));
-}
-
-void asm_win_unselect_window(asm_win_t* asm_win) {
-    wbkgd(asm_win->win, COLOR_PAIR(CTK_COLOR_WINDOW));
 }
