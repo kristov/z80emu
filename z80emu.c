@@ -42,6 +42,8 @@ ctk_widget_t WIDGETS[10];
 // |       | MSG                     |
 // +-------+-------------------------+
 
+char MSG[256];
+
 // An instance of an emulator UI
 typedef struct z80emu {
     FILE* rom_fh;
@@ -63,6 +65,15 @@ typedef struct z80emu {
 // Only one emulation happening at a time
 z80emu_t Z80EMU;
 
+void debug_message(const char *format, ...) {
+    memset(&MSG, 0, 256);
+    va_list aptr;
+    va_start(aptr, format);
+    vsprintf(&MSG[0], format, aptr);
+    va_end(aptr);
+    MSG[255] = '\0';
+}
+
 // Z80EX-Callback for a CPU memory read
 Z80EX_BYTE mem_read(Z80EX_CONTEXT* cpu, Z80EX_WORD addr, int m1_state, void* user_data) {
     z80emu_t* z80emu;
@@ -72,23 +83,23 @@ Z80EX_BYTE mem_read(Z80EX_CONTEXT* cpu, Z80EX_WORD addr, int m1_state, void* use
 
 // Z80EX-Callback for a CPU memory write
 void mem_write(Z80EX_CONTEXT *cpu, Z80EX_WORD addr, Z80EX_BYTE value, void *z80emu) {
-    ctk_printf(&WIDGETS[AREA_MSG], 0, 0, 1, "memory write: address[%016x] data[%08x]", addr, value);
+    debug_message("memory write: address[%016x] data[%08x]", addr, value);
 }
 
 // Z80EX-Callback for a CPU port read
 Z80EX_BYTE port_read(Z80EX_CONTEXT *cpu, Z80EX_WORD port, void *z80emu) {
-    ctk_printf(&WIDGETS[AREA_MSG], 0, 0, 1, "port read: address[%016x]", port);
+    debug_message("port read: address[%016x]", port);
     return 0;
 }
 
 // Z80EX-Callback for a CPU port write
 void port_write(Z80EX_CONTEXT *cpu, Z80EX_WORD port, Z80EX_BYTE value, void *z80emu) {
-    ctk_printf(&WIDGETS[AREA_MSG], 0, 0, 1, "port write: address[%016x] data[%08x]", port, value);
+    debug_message("port write: address[%016x] data[%08x]", port, value);
 }
 
 // Z80EX-Callback for an interrupt read
 Z80EX_BYTE int_read(Z80EX_CONTEXT *cpu, void *z80emu) {
-    //printf("interrupt vector!\n");
+    debug_message("interrupt vector!");
     return 0;
 }
 
@@ -97,12 +108,6 @@ Z80EX_BYTE mem_read_dasm(Z80EX_WORD addr, void *user_data) {
     z80emu_t* z80emu;
     z80emu = user_data;
     return z80emu->memory[(uint16_t)addr];
-}
-
-void debug_message(z80emu_t* z80emu, char* message) {
-    wattron(z80emu->msg_win, COLOR_PAIR(CTK_COLOR_WARNING));
-    mvwaddstr(z80emu->msg_win, 1, 1, message);
-    wattroff(z80emu->msg_win, COLOR_PAIR(CTK_COLOR_WARNING));
 }
 
 void cleanup_context(z80emu_t* z80emu) {
@@ -146,6 +151,14 @@ static uint8_t mem_event_handler(ctk_event_t* event, void* user_data) {
     }
     z80emu_t* z80emu = (z80emu_t*)user_data;
     mem_win_draw(event->widget, z80emu->memory, z80emu->pc_before);
+    return 1;
+}
+
+static uint8_t msg_event_handler(ctk_event_t* event, void* user_data) {
+    if (event->type != CTK_EVENT_DRAW) {
+        return 1;
+    }
+    ctk_addstr(event->widget, 0, 0, 1, &MSG[0]);
     return 1;
 }
 
@@ -207,6 +220,7 @@ void init_windows(z80emu_t* z80emu) {
     ctk_widget_event_handler(&WIDGETS[AREA_ASM], asm_event_handler, z80emu);
     ctk_widget_event_handler(&WIDGETS[AREA_MEM], mem_event_handler, z80emu);
     ctk_widget_event_handler(&WIDGETS[AREA_REG], reg_event_handler, z80emu);
+    ctk_widget_event_handler(&WIDGETS[AREA_MSG], msg_event_handler, z80emu);
     ctk_init(&z80emu->ctx, &WIDGETS[MAIN_HBOX], 1);
     ctk_widget_event_handler(&z80emu->ctx.mainwin, main_event_handler, z80emu);
     asm_win_init(&z80emu->asm_win, WIDGETS[AREA_ASM].height);
