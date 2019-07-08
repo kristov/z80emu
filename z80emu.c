@@ -1,4 +1,3 @@
-#include <ncurses.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -14,14 +13,8 @@
 #include "mem_win.h"
 #include "asm_win.h"
 
-// Which sub-window has focus
-enum win_mode {
-    MODE_REG,
-    MODE_ASM,
-    MODE_MEM
-};
-#define MODE_ZERO 0x00
-#define MODE_MAX 0x02
+#define Z80EMU_MODE_KEY 0x00
+#define Z80EMU_MODE_CMD 0x01
 
 #define AREA_ASM 0
 #define ASM_MEM_VRULE 1
@@ -42,36 +35,49 @@ ctk_widget_t WIDGETS[10];
 // |       | MSG                     |
 // +-------+-------------------------+
 
-char MSG[256];
+typedef struct msg_bar {
+    char msg[256];
+    uint8_t pos;
+} msg_bar_t;
 
-// An instance of an emulator UI
 typedef struct z80emu {
     FILE* rom_fh;
     uint8_t* memory;
     Z80EX_CONTEXT *cpu;
     uint16_t pc_before;
     uint16_t pc_after;
-    enum win_mode win_mode;
     ctk_ctx_t ctx;
     reg_win_t reg_win;
     asm_win_t asm_win;
-    WINDOW* msg_win;
-    uint8_t msg_width;
-    uint8_t msg_height;
-    uint8_t pause;
-    char msg[255];
+    uint8_t paused;
+    uint8_t mode;
+    msg_bar_t msg_bar;
 } z80emu_t;
 
 // Only one emulation happening at a time
 z80emu_t Z80EMU;
 
-void debug_message(const char *format, ...) {
-    memset(&MSG, 0, 256);
+static void msg_bar_debug(msg_bar_t* msg_bar, const char *format, ...) {
+    memset(&msg_bar->msg[0], 0, 256);
+    msg_bar->pos = 0;
     va_list aptr;
     va_start(aptr, format);
-    vsprintf(&MSG[0], format, aptr);
+    vsprintf(&msg_bar->msg[0], format, aptr);
     va_end(aptr);
-    MSG[255] = '\0';
+    msg_bar->msg[255] = '\0';
+}
+
+static void msg_bar_clear(msg_bar_t* msg_bar) {
+    memset(&msg_bar->msg[0], 0, 256);
+    msg_bar->pos = 0;
+}
+
+static char* msg_bar_get_message(msg_bar_t* msg_bar) {
+    return &msg_bar->msg[0];
+}
+
+static void msg_bar_add_char(msg_bar_t* msg_bar, int key) {
+    msg_bar->msg[msg_bar->pos++] = key;
 }
 
 // Z80EX-Callback for a CPU memory read
@@ -82,31 +88,34 @@ Z80EX_BYTE mem_read(Z80EX_CONTEXT* cpu, Z80EX_WORD addr, int m1_state, void* use
 }
 
 // Z80EX-Callback for a CPU memory write
-void mem_write(Z80EX_CONTEXT *cpu, Z80EX_WORD addr, Z80EX_BYTE value, void *z80emu) {
-    debug_message("memory write: address[%016x] data[%08x]", addr, value);
+void mem_write(Z80EX_CONTEXT *cpu, Z80EX_WORD addr, Z80EX_BYTE value, void* user_data) {
+    z80emu_t* z80emu = (z80emu_t*)user_data;
+    msg_bar_debug(&z80emu->msg_bar, "memory write: address[%016x] data[%08x]", addr, value);
 }
 
 // Z80EX-Callback for a CPU port read
-Z80EX_BYTE port_read(Z80EX_CONTEXT *cpu, Z80EX_WORD port, void *z80emu) {
-    debug_message("port read: address[%016x]", port);
+Z80EX_BYTE port_read(Z80EX_CONTEXT *cpu, Z80EX_WORD port, void* user_data) {
+    z80emu_t* z80emu = (z80emu_t*)user_data;
+    msg_bar_debug(&z80emu->msg_bar, "port read: address[%016x]", port);
     return 0;
 }
 
 // Z80EX-Callback for a CPU port write
-void port_write(Z80EX_CONTEXT *cpu, Z80EX_WORD port, Z80EX_BYTE value, void *z80emu) {
-    debug_message("port write: address[%016x] data[%08x]", port, value);
+void port_write(Z80EX_CONTEXT *cpu, Z80EX_WORD port, Z80EX_BYTE value, void* user_data) {
+    z80emu_t* z80emu = (z80emu_t*)user_data;
+    msg_bar_debug(&z80emu->msg_bar, "port write: address[%016x] data[%08x]", port, value);
 }
 
 // Z80EX-Callback for an interrupt read
-Z80EX_BYTE int_read(Z80EX_CONTEXT *cpu, void *z80emu) {
-    debug_message("interrupt vector!");
+Z80EX_BYTE int_read(Z80EX_CONTEXT *cpu, void* user_data) {
+    z80emu_t* z80emu = (z80emu_t*)user_data;
+    msg_bar_debug(&z80emu->msg_bar, "interrupt vector!");
     return 0;
 }
 
 // Z80EX-Callback for DASM memory read
-Z80EX_BYTE mem_read_dasm(Z80EX_WORD addr, void *user_data) {
-    z80emu_t* z80emu;
-    z80emu = user_data;
+Z80EX_BYTE mem_read_dasm(Z80EX_WORD addr, void* user_data) {
+    z80emu_t* z80emu = (z80emu_t*)user_data;
     return z80emu->memory[(uint16_t)addr];
 }
 
@@ -134,6 +143,9 @@ static uint8_t asm_event_handler(ctk_event_t* event, void* user_data) {
         return 1;
     }
     z80emu_t* z80emu = (z80emu_t*)user_data;
+    if (z80emu->paused) {
+        return 1;
+    }
     char asm_before[255];
     char asm_after[255];
     int t, t2;
@@ -151,6 +163,7 @@ static uint8_t mem_event_handler(ctk_event_t* event, void* user_data) {
     }
     z80emu_t* z80emu = (z80emu_t*)user_data;
     mem_win_draw(event->widget, z80emu->memory, z80emu->pc_before);
+    msg_bar_debug(&z80emu->msg_bar, "[%dx%d]", event->widget->width, event->widget->height);
     return 1;
 }
 
@@ -158,8 +171,8 @@ static uint8_t msg_event_handler(ctk_event_t* event, void* user_data) {
     if (event->type != CTK_EVENT_DRAW) {
         return 1;
     }
-    ctk_addstr(event->widget, 0, 0, 1, &MSG[0]);
-    memset(&MSG, 0, 256);
+    z80emu_t* z80emu = (z80emu_t*)user_data;
+    ctk_addstr(event->widget, 0, 0, 1, msg_bar_get_message(&z80emu->msg_bar));
     return 1;
 }
 
@@ -182,11 +195,27 @@ static uint8_t reg_event_handler(ctk_event_t* event, void* user_data) {
     return 1;
 }
 
+static uint8_t cmd_mode_handler(z80emu_t* z80emu, int key) {
+    if (key == '\n') {
+        msg_bar_clear(&z80emu->msg_bar);
+        z80emu->mode = Z80EMU_MODE_KEY;
+        z80emu->paused = 0;
+        return 1;
+    }
+    msg_bar_add_char(&z80emu->msg_bar, key);
+    return 1;
+}
+
 static uint8_t main_event_handler(ctk_event_t* event, void* user_data) {
     if (event->type != CTK_EVENT_KEY) {
         return 1;
     }
     z80emu_t* z80emu = (z80emu_t*)user_data;
+    if (z80emu->mode == Z80EMU_MODE_CMD) {
+        event->ctx->redraw = 1;
+        return cmd_mode_handler(z80emu, event->key);
+    }
+    msg_bar_clear(&z80emu->msg_bar);
     switch (event->key) {
         case 's':
             execute_instruction(z80emu);
@@ -200,6 +229,12 @@ static uint8_t main_event_handler(ctk_event_t* event, void* user_data) {
             cleanup_context(z80emu);
             endwin();
             exit(0);
+            break;
+        case ':':
+            z80emu->paused = 1;
+            event->ctx->redraw = 1;
+            msg_bar_clear(&z80emu->msg_bar);
+            z80emu->mode = Z80EMU_MODE_CMD;
             break;
         default:
             break;
