@@ -163,7 +163,6 @@ static uint8_t mem_event_handler(ctk_event_t* event, void* user_data) {
     }
     z80emu_t* z80emu = (z80emu_t*)user_data;
     mem_win_draw(event->widget, z80emu->memory, z80emu->pc_before);
-    msg_bar_debug(&z80emu->msg_bar, "[%dx%d]", event->widget->width, event->widget->height);
     return 1;
 }
 
