@@ -57,6 +57,12 @@ typedef struct z80emu {
 // Only one emulation happening at a time
 z80emu_t Z80EMU;
 
+typedef struct rom_spec {
+    char* file;
+    uint16_t start;
+    uint16_t end;
+} rom_spec_t;
+
 static void msg_bar_debug(msg_bar_t* msg_bar, const char *format, ...) {
     memset(&msg_bar->msg[0], 0, 256);
     msg_bar->pos = 0;
@@ -291,12 +297,12 @@ void install_signal_handlers() {
     signal(SIGWINCH, handle_winch);
 }
 
-void load_binary_rom(z80emu_t* z80emu, char* rom_file) {
+void load_binary_rom(z80emu_t* z80emu, rom_spec_t* rom_spec) {
     unsigned long len;
 
-    z80emu->rom_fh = fopen(rom_file, "rb");
+    z80emu->rom_fh = fopen(rom_spec->file, "rb");
     if (z80emu->rom_fh == NULL) {
-        printf("Could not open rom file\n");
+        printf("Could not open rom file: %s\n", rom_spec->file);
         exit(1);
     }
 
@@ -310,6 +316,24 @@ void load_binary_rom(z80emu_t* z80emu, char* rom_file) {
     fread(z80emu->memory, len, 1, z80emu->rom_fh);
 
     fclose(z80emu->rom_fh);
+}
+
+void parse_rom_spec(char* param, rom_spec_t* rom_spec) {
+    rom_spec->start = 0;
+    rom_spec->end = 65535;
+    char* ptr = NULL;
+    ptr = strtok(param, ":");
+    rom_spec->file = ptr;
+    ptr = strtok(NULL, ":");
+    if (ptr == NULL) {
+        return;
+    }
+    rom_spec->start = (uint16_t)strtol(ptr, NULL, 0);
+    ptr = strtok(NULL, ":");
+    if (ptr == NULL) {
+        return;
+    }
+    rom_spec->end = (uint16_t)strtol(ptr, NULL, 0);
 }
 
 // Usage
@@ -338,6 +362,7 @@ void init_z80emu(z80emu_t* z80emu) {
 int main(int argc, char *argv[]) {
     int8_t c;
     int option_index = 0;
+    rom_spec_t rom_spec;
 
     init_z80emu(&Z80EMU);
 
@@ -353,7 +378,8 @@ int main(int argc, char *argv[]) {
         }
         switch (c) {
             case 'r':
-                load_binary_rom(&Z80EMU, optarg);
+                parse_rom_spec(optarg, &rom_spec);
+                load_binary_rom(&Z80EMU, &rom_spec);
                 break;
             default:
                 print_help();
@@ -361,7 +387,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    main_program(&Z80EMU);
+    //main_program(&Z80EMU);
 
     cleanup_context(&Z80EMU);
     endwin();
