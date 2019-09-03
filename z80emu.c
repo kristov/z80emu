@@ -97,6 +97,7 @@ Z80EX_BYTE mem_read(Z80EX_CONTEXT* cpu, Z80EX_WORD addr, int m1_state, void* use
 void mem_write(Z80EX_CONTEXT *cpu, Z80EX_WORD addr, Z80EX_BYTE value, void* user_data) {
     z80emu_t* z80emu = (z80emu_t*)user_data;
     msg_bar_debug(&z80emu->msg_bar, "memory write: address[%016x] data[%08x]", addr, value);
+    z80emu->memory[(uint16_t)addr] = value;
 }
 
 // Z80EX-Callback for a CPU port read
@@ -168,6 +169,9 @@ static uint8_t mem_event_handler(ctk_event_t* event, void* user_data) {
         return 1;
     }
     z80emu_t* z80emu = (z80emu_t*)user_data;
+    uint8_t viz_width = event->widget->width;
+    uint8_t nr_bytes_across = viz_width / 3;
+    msg_bar_debug(&z80emu->msg_bar, "nr_bytes_across: %d", nr_bytes_across);
     mem_win_draw(event->widget, z80emu->memory, z80emu->pc_before);
     return 1;
 }
@@ -387,7 +391,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    //main_program(&Z80EMU);
+    main_program(&Z80EMU);
 
     cleanup_context(&Z80EMU);
     endwin();
