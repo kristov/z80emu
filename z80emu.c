@@ -230,6 +230,9 @@ static uint8_t main_event_handler(ctk_event_t* event, void* user_data) {
             execute_instruction(z80emu);
             event->ctx->redraw = 1;
             break;
+        case 'i':
+            z80ex_int(z80emu->cpu);
+            break;
         case 'R':
             reset_all(z80emu);
             event->ctx->redraw = 1;
