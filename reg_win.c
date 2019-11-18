@@ -86,16 +86,18 @@ void reg_win_draw(ctk_widget_t* window, reg_win_t* reg_win) {
     ctk_addstr(window, x, y, CTK_COLOR_OK, "H               L              "); y++;
     draw_reg_16_as_two_8(window, 0, y, reg_win->HL); y++;
     draw_reg_16(window, 0, y, reg_win->HL); y++;
+    ctk_addstr(window, x, y, CTK_COLOR_OK, "I               X              "); y++;
+    draw_reg_16_as_two_8(window, 0, y, reg_win->IX); y++;
+    draw_reg_16(window, 0, y, reg_win->IX); y++;
+    ctk_addstr(window, x, y, CTK_COLOR_OK, "I               Y              "); y++;
+    draw_reg_16_as_two_8(window, 0, y, reg_win->IY); y++;
+    draw_reg_16(window, 0, y, reg_win->IY); y++;
+    ctk_addstr(window, x, y, CTK_COLOR_OK, "SP              [stack pointer]"); y++;
+    draw_reg_16(window, 0, y, reg_win->SP); y++;
     ctk_addstr(window, x, y, CTK_COLOR_OK, "I                   [interrupt]"); y++;
     draw_reg_16(window, 0, y, reg_win->I); y++;
     ctk_addstr(window, x, y, CTK_COLOR_OK, "R                     [refresh]"); y++;
     draw_reg_16(window, 0, y, reg_win->R); y++;
-    ctk_addstr(window, x, y, CTK_COLOR_OK, "SP              [stack pointer]"); y++;
-    draw_reg_16(window, 0, y, reg_win->SP); y++;
-    ctk_addstr(window, x, y, CTK_COLOR_OK, "IXH             IXL            "); y++;
-    draw_reg_16_as_two_8(window, 0, y, reg_win->IX); y++;
-    ctk_addstr(window, x, y, CTK_COLOR_OK, "IYH             IYL            "); y++;
-    draw_reg_16_as_two_8(window, 0, y, reg_win->IY); y++;
 }
 
 void reg_win_select_window(ctk_widget_t* window) {
