@@ -255,9 +255,9 @@ static uint8_t main_event_handler(ctk_event_t* event, void* user_data) {
 }
 
 void init_windows(z80emu_t* z80emu) {
-    ctk_init_area(&WIDGETS[AREA_ASM], 20, 10, 0, 1);
+    ctk_init_area(&WIDGETS[AREA_ASM], 20, 10, 1, 1);
     ctk_init_vrule(&WIDGETS[ASM_MEM_VRULE]);
-    ctk_init_area(&WIDGETS[AREA_MEM], 10, 10, 1, 1);
+    ctk_init_area(&WIDGETS[AREA_MEM], 54, 10, 0, 1);
     ctk_init_hbox(&WIDGETS[RIGHT_HBOX], &WIDGETS[AREA_ASM], 3);
     ctk_init_hrule(&WIDGETS[HBOX_MSG_HRULE]);
     ctk_init_area(&WIDGETS[AREA_MSG], 30, 1, 1, 0);
