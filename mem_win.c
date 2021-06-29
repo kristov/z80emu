@@ -1,7 +1,24 @@
 #include "mem_win.h"
 #include <ctk.h>
 
-void mem_win_draw(ctk_widget_t* window, uint8_t* memory, uint16_t pc) {
+void mem_win_init(mem_win_t* mem_win, uint8_t* memory) {
+    mem_win->memory = memory;
+    mem_win->pc = 0;
+    mem_win->page_offset = 0;
+}
+
+void mem_win_pageup(mem_win_t* mem_win) {
+    mem_win->page_offset--;
+}
+
+void mem_win_pagedown(mem_win_t* mem_win) {
+    mem_win->page_offset++;
+}
+
+void mem_win_draw(ctk_widget_t* window, mem_win_t* mem_win) {
+    uint8_t* memory = mem_win->memory;
+    uint16_t pc = mem_win->pc;
+
     char addr[5];
     char hex[3];
 
@@ -13,7 +30,8 @@ void mem_win_draw(ctk_widget_t* window, uint8_t* memory, uint16_t pc) {
     uint8_t x = 0;
     uint8_t y = 0;
 
-    for (uint16_t i = 0; i < 65536; i += 16) {
+    uint16_t i = mem_win->page_offset * 16 * window->height;
+    for (; i < 65536; i += 16) {
         sprintf(addr, "%04x", i);
         ctk_addstr(window, x, y, CTK_COLOR_SELECTED, addr);
         x += 6;

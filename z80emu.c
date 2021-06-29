@@ -49,6 +49,7 @@ typedef struct z80emu {
     ctk_ctx_t ctx;
     reg_win_t reg_win;
     asm_win_t asm_win;
+    mem_win_t mem_win;
     uint8_t paused;
     uint8_t mode;
     msg_bar_t msg_bar;
@@ -169,10 +170,8 @@ static uint8_t mem_event_handler(ctk_event_t* event, void* user_data) {
         return 1;
     }
     z80emu_t* z80emu = (z80emu_t*)user_data;
-    uint8_t viz_width = event->widget->width;
-    uint8_t nr_bytes_across = viz_width / 3;
-    msg_bar_debug(&z80emu->msg_bar, "nr_bytes_across: %d", nr_bytes_across);
-    mem_win_draw(event->widget, z80emu->memory, z80emu->pc_before);
+    z80emu->mem_win.pc = z80emu->pc_before;
+    mem_win_draw(event->widget, &z80emu->mem_win);
     return 1;
 }
 
@@ -224,7 +223,7 @@ static uint8_t main_event_handler(ctk_event_t* event, void* user_data) {
         event->ctx->redraw = 1;
         return cmd_mode_handler(z80emu, event->key);
     }
-    msg_bar_clear(&z80emu->msg_bar);
+    //msg_bar_clear(&z80emu->msg_bar);
     switch (event->key) {
         case 's':
             execute_instruction(z80emu);
@@ -248,7 +247,19 @@ static uint8_t main_event_handler(ctk_event_t* event, void* user_data) {
             msg_bar_clear(&z80emu->msg_bar);
             z80emu->mode = Z80EMU_MODE_CMD;
             break;
+        case 339:
+            msg_bar_debug(&z80emu->msg_bar, "page-up");
+            mem_win_pageup(&z80emu->mem_win);
+            event->ctx->redraw = 1;
+            break;
+        case 338:
+            msg_bar_debug(&z80emu->msg_bar, "page-down");
+            mem_win_pagedown(&z80emu->mem_win);
+            event->ctx->redraw = 1;
+            break;
         default:
+            msg_bar_debug(&z80emu->msg_bar, "key: %d", event->key);
+            event->ctx->redraw = 1;
             break;
     }
     return 1;
@@ -271,6 +282,7 @@ void init_windows(z80emu_t* z80emu) {
     ctk_widget_event_handler(&WIDGETS[AREA_MSG], msg_event_handler, z80emu);
     ctk_init(&z80emu->ctx, &WIDGETS[MAIN_HBOX], 1);
     ctk_widget_event_handler(&z80emu->ctx.mainwin, main_event_handler, z80emu);
+    mem_win_init(&z80emu->mem_win, z80emu->memory);
     asm_win_init(&z80emu->asm_win, WIDGETS[AREA_ASM].height);
 }
 
