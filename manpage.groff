@@ -1,0 +1,22 @@
+.\" Manpage for z80emu.
+.\" Contact chris.eade@gmail.com to correct errors or typos.
+.TH man 1 "02 Jul 2021" "0.1" "z80emu man page"
+.SH NAME
+z80emu \- Interactive Z80 CPU emulator
+.SH SYNOPSIS
+z80emu -r my.rom
+.SH DESCRIPTION
+z80emu is an ncurses application for running Z80 machine code programs. It provides a register viewer, dissasembly of executed opcodes and a memory viewer for seeing whats goin on. You can step through code, manually trigger interrupts and other stuff.
+.SH OPTIONS
+.IP "-r romfile"
+A binary ROM to load into memory. Be default the ROM is loaded at address 0 and is expected to be 65536 bytes long. This can be tuned by adding extra options to the ROM file name:
+.BR "-r my.rom:256" " to set start offset, and " "-r my.rom:256:1024" " to set an end offset."
+.IP "-l listfile"
+Provide a listfile of labels. This is used for example when a "call" instruction is found it will try to resolve this to a label and display the label along with the address. This is an ascii file that can be generated with the
+.BR "-l" " option of " "z80asm-gnu" " or manually generated in the line format '" "label_name: equ $ffff" "'"
+.SH SEE ALSO
+z80ex 
+.SH BUGS
+Lots
+.SH AUTHOR
+Chris Eade (chris.eade@gmail.com)

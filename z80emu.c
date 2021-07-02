@@ -35,6 +35,11 @@ ctk_widget_t WIDGETS[10];
 // |       | MSG                     |
 // +-------+-------------------------+
 
+struct label {
+    uint16_t addr;
+    char* name;
+};
+
 typedef struct msg_bar {
     char msg[256];
     uint8_t pos;
@@ -53,6 +58,7 @@ typedef struct z80emu {
     uint8_t paused;
     uint8_t mode;
     msg_bar_t msg_bar;
+    struct label* labels;
 } z80emu_t;
 
 // Only one emulation happening at a time
@@ -146,6 +152,20 @@ static void execute_instruction(z80emu_t* z80emu) {
     z80emu->pc_after = z80ex_get_reg(z80emu->cpu, regPC);
 }
 
+static char* look_for_label(z80emu_t* z80emu, uint16_t addr) {
+    if (z80emu->labels == NULL) {
+        return NULL;
+    }
+    struct label* label = &z80emu->labels[0];
+    while (label->name != NULL) {
+        if (label->addr == addr) {
+            return label->name;
+        }
+        label++;
+    }
+    return NULL;
+}
+
 static uint8_t asm_event_handler(ctk_event_t* event, void* user_data) {
     if (event->type != CTK_EVENT_DRAW) {
         return 1;
@@ -156,11 +176,25 @@ static uint8_t asm_event_handler(ctk_event_t* event, void* user_data) {
     }
     char asm_before[255];
     char asm_after[255];
+    char tmp[255];
     int t, t2;
     memset(asm_before, 0, 255);
     memset(asm_after, 0, 255);
+    memset(tmp, 0, 255);
+    uint16_t pc_before = z80emu->pc_before;
+    uint8_t ins = z80emu->memory[pc_before];
+    char* name = NULL;
+    if (ins == 0xcd) {
+        uint16_t addr = (z80emu->memory[pc_before + 1]) | (z80emu->memory[pc_before + 2] << 8);
+        name = look_for_label(z80emu, addr);
+    }
     z80ex_dasm(asm_before, 255, 0, &t, &t2, mem_read_dasm, z80emu->pc_before, z80emu);
     z80ex_dasm(asm_after, 255, 0, &t, &t2, mem_read_dasm, z80emu->pc_after, z80emu);
+    if (name != NULL) {
+        snprintf(tmp, 255, "%s [%s]", asm_before, name);
+        asm_win_draw(event->widget, &z80emu->asm_win, tmp, asm_after);
+        return 1;
+    }
     asm_win_draw(event->widget, &z80emu->asm_win, asm_before, asm_after);
     return 1;
 }
@@ -283,7 +317,7 @@ void init_windows(z80emu_t* z80emu) {
     ctk_init(&z80emu->ctx, &WIDGETS[MAIN_HBOX], 1);
     ctk_widget_event_handler(&z80emu->ctx.mainwin, main_event_handler, z80emu);
     mem_win_init(&z80emu->mem_win, z80emu->memory);
-    asm_win_init(&z80emu->asm_win, WIDGETS[AREA_ASM].height);
+    asm_win_init(&z80emu->asm_win, WIDGETS[AREA_ASM].width, WIDGETS[AREA_ASM].height);
 }
 
 // Curses init
@@ -316,12 +350,85 @@ void install_signal_handlers() {
     signal(SIGWINCH, handle_winch);
 }
 
+void load_list_file(z80emu_t* z80emu, char* param) {
+    FILE* fh = fopen(param, "r");
+    if (fh == NULL) {
+        fprintf(stderr, "Could not open list file: %s\n", param);
+        exit(1);
+    }
+    char* line = NULL;
+    size_t len = 0;
+    ssize_t read = 0;
+    char* label = NULL;
+    char* hex = NULL;
+    uint32_t labellen = 0;
+    uint16_t addr = 0;
+    char c = '\0';
+    uint16_t nr_labels = 0;
+    while ((read = getline(&line, &len, fh)) != -1) {
+        label = strtok(line, ":");
+        if (label == NULL) {
+            continue;
+        }
+        hex = strtok(NULL, "$");
+        if (hex == NULL) {
+            continue;
+        }
+        hex = strtok(NULL, "\n");
+        if (hex == NULL) {
+            continue;
+        }
+        while ((c = *hex++)) {
+            char v = ((c & 0xf) + (c >> 6)) | ((c >> 3) & 0x8);
+            addr = (addr << 4) | (uint16_t) v;
+        }
+        nr_labels++;
+    }
+    if (labellen >= 65536) {
+        fprintf(stderr, "Too many strings in list file!\n");
+        fclose(fh);
+        exit(1);
+    }
+
+    z80emu->labels = malloc(sizeof(struct label) * (nr_labels + 1));
+    struct label* curr_label = NULL;
+    curr_label = &z80emu->labels[0];
+
+    rewind(fh);
+    while ((read = getline(&line, &len, fh)) != -1) {
+        label = strtok(line, ":");
+        if (label == NULL) {
+            continue;
+        }
+        hex = strtok(NULL, "$");
+        if (hex == NULL) {
+            continue;
+        }
+        hex = strtok(NULL, "\n");
+        if (hex == NULL) {
+            continue;
+        }
+        while ((c = *hex++)) {
+            char v = ((c & 0xf) + (c >> 6)) | ((c >> 3) & 0x8);
+            addr = (addr << 4) | (uint16_t) v;
+        }
+        curr_label->addr = addr;
+        size_t len = strlen(label);
+        curr_label->name = malloc(sizeof(char) * (len + 1));
+        strncpy(curr_label->name, label, len + 1);
+        curr_label++;
+    }
+    curr_label->addr = 0;
+    curr_label->name = NULL;
+    fclose(fh);
+}
+
 void load_binary_rom(z80emu_t* z80emu, rom_spec_t* rom_spec) {
     unsigned long len;
 
     z80emu->rom_fh = fopen(rom_spec->file, "rb");
     if (z80emu->rom_fh == NULL) {
-        printf("Could not open rom file: %s\n", rom_spec->file);
+        fprintf(stderr, "Could not open rom file: %s\n", rom_spec->file);
         exit(1);
     }
 
@@ -357,7 +464,18 @@ void parse_rom_spec(char* param, rom_spec_t* rom_spec) {
 
 // Usage
 void print_help() {
-    printf("Usage: z80emu [-r<binary rom file>]\n");
+    printf("Usage: z80emu [-r <rom>]\n");
+    printf("\n");
+    printf("  -r <rom>\n");
+    printf("    The ROM to load into memory before execution. This can take one of three forms:\n");
+    printf("    1) -r rom.bin           : Start address 0, end addr 65535\n");
+    printf("    2) -r rom.bin:512       : Start address 512, end addr 65535\n");
+    printf("    3) -r rom.bin:512:1024  : Start address 512, end addr 1024\n");
+    printf("\n");
+    printf("  -l <listing file>\n");
+    printf("    A file containing labels and addresses. When a 'call' instruction is encountered\n");
+    printf("    in the z80asm-gnu format (-l option)\n");
+    printf("\n");
 }
 
 // The main entry point after the instance is set up
@@ -386,12 +504,14 @@ int main(int argc, char *argv[]) {
     init_z80emu(&Z80EMU);
 
     static struct option long_options[] = {
+        {"help", optional_argument, 0, 'h'},
         {"rom", optional_argument, 0, 'r'},
+        {"list", optional_argument, 0, 'l'},
         {0, 0, 0, 0}
     };
 
     while (1) {
-        c = getopt_long(argc, argv, "r:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hr:l:", long_options, &option_index);
         if (c == -1) {
             break;
         }
@@ -400,6 +520,12 @@ int main(int argc, char *argv[]) {
                 parse_rom_spec(optarg, &rom_spec);
                 load_binary_rom(&Z80EMU, &rom_spec);
                 break;
+            case 'l':
+                load_list_file(&Z80EMU, optarg);
+                break;
+            case 'h':
+                print_help();
+                exit(1);
             default:
                 print_help();
                 exit(1);
