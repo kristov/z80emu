@@ -184,9 +184,15 @@ static uint8_t asm_event_handler(ctk_event_t* event, void* user_data) {
     uint16_t pc_before = z80emu->pc_before;
     uint8_t ins = z80emu->memory[pc_before];
     char* name = NULL;
-    if (ins == 0xcd) {
+    if ((ins == 0xcd) || (ins == 0xc3)) {
         uint16_t addr = (z80emu->memory[pc_before + 1]) | (z80emu->memory[pc_before + 2] << 8);
         name = look_for_label(z80emu, addr);
+    }
+    if (ins == 0x10) {
+        int8_t addr = z80emu->memory[pc_before + 1];
+        uint16_t naddr = addr + pc_before + 2;
+        msg_bar_debug(&z80emu->msg_bar, "naddr: %04x", naddr);
+        name = look_for_label(z80emu, naddr);
     }
     z80ex_dasm(asm_before, 255, 0, &t, &t2, mem_read_dasm, z80emu->pc_before, z80emu);
     z80ex_dasm(asm_after, 255, 0, &t, &t2, mem_read_dasm, z80emu->pc_after, z80emu);
