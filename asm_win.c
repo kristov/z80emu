@@ -20,7 +20,7 @@ void asm_win_draw(ctk_widget_t* window, asm_win_t* asm_win, char* asm_before, ch
         len = asm_win->width;
     }
     char* dest = &asm_win->history[asm_win->next_history * asm_win->width];
-    memset(dest, 0, len);
+    memset(dest, 0, asm_win->width);
     memcpy(dest, asm_before, len);
     dest[asm_win->width - 1] = '\0';
     asm_win->next_history++;
@@ -29,9 +29,11 @@ void asm_win_draw(ctk_widget_t* window, asm_win_t* asm_win, char* asm_before, ch
     }
     ctk_printf(window, 0, 0, 1, "%d  ", len);
     uint16_t top = asm_win->next_history;
-    for (uint16_t i = 0; i < asm_win->height; i++) {
-        ctk_addstr(window, 0, i, 1, "                    ");
-        ctk_printf(window, 0, i, 1, "%s", &asm_win->history[top * asm_win->width]);
+    for (uint16_t y = 0; y < asm_win->height; y++) {
+        //for (uint8_t x = 0; x < asm_win->width; x++) {
+        //    ctk_addch(window, x, y, 1, '.');
+        //
+        ctk_printf(window, 0, y, 1, "%s", &asm_win->history[top * asm_win->width]);
         top++;
         if (top >= asm_win->height) {
             top = 0;
