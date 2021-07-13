@@ -184,15 +184,24 @@ static uint8_t asm_event_handler(ctk_event_t* event, void* user_data) {
     uint16_t pc_before = z80emu->pc_before;
     uint8_t ins = z80emu->memory[pc_before];
     char* name = NULL;
-    if ((ins == 0xc2) || (ins == 0xc3) || (ins == 0xca) || (ins == 0xcd)) {
+    if (((ins & 0xc2) == 0xc2) || (ins == 0xc4) || (ins == 0xca) || (ins == 0xcc) || (ins == 0xcd)) {
+        // "jp nz", "jp", "call nz", "jp z", "call z", "call"
         uint16_t addr = (z80emu->memory[pc_before + 1]) | (z80emu->memory[pc_before + 2] << 8);
         name = look_for_label(z80emu, addr);
     }
     if (ins == 0x10) {
+        // djnz
         int8_t addr = z80emu->memory[pc_before + 1];
         uint16_t naddr = addr + pc_before + 2;
-        msg_bar_debug(&z80emu->msg_bar, "naddr: %04x", naddr);
         name = look_for_label(z80emu, naddr);
+    }
+    if (ins == 0xed) {
+        // extended instructions
+        ins = z80emu->memory[pc_before + 1];
+        if (((ins & 0x43) == 0x43) || ((ins & 0x4b) == 0x4b)) {
+            uint16_t addr = (z80emu->memory[pc_before + 2]) | (z80emu->memory[pc_before + 3] << 8);
+            name = look_for_label(z80emu, addr);
+        }
     }
     z80ex_dasm(asm_before, 255, 0, &t, &t2, mem_read_dasm, z80emu->pc_before, z80emu);
     z80ex_dasm(asm_after, 255, 0, &t, &t2, mem_read_dasm, z80emu->pc_after, z80emu);
